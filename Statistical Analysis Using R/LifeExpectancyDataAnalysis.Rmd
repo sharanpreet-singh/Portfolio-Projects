@@ -1,0 +1,243 @@
+---
+title: "Investigating the Global Life Expectancy Data"
+subtitle: "To search for a statistical evidence in the difference of life expectancy at birth between Females and Males"
+author: "Sharanpreet Singh  s3937560"
+date: "Last updated: `r format(Sys.time(), '%d %B, %Y')`"
+output:
+  slidy_presentation:
+    font_adjustment: 0
+    highlight: haddock
+    mathjax: "default"
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+# Use this chunk to quietly load your pacakges
+
+knitr::opts_chunk$set(
+	fig.align = "center",
+	message = FALSE,
+	warning = FALSE
+)
+# Packages loaded in this chunk will not appear in the presentation. 
+
+library(ggplot2) #For creating plots
+library(dplyr)  #For data maipulation
+library(knitr) #For creating nice tables
+library(kableExtra)
+library(readr)
+library(car)
+library(mathjaxr)
+library(gridExtra)
+library(RColorBrewer)
+library(latexpdf)
+
+Life <- read_csv("LifeExpectancy_Preprocessed.csv")
+```
+
+# Introduction
+
+-   Before we dive in, let us look into the definition of **Life Expectancy**:
+
+*Life expectancy is defined as the average number of years that a human being is expected to live. It is based on the assumption that the mortality rates are being maintained, and in-turn it allows us to summarize the mortality of a country* **(Our World in Data 2017)***.*
+
+-   The variation in Life Expectancy depends on a country's welfare state, and in-turn Life Expectancy gives us an idea about the overall health of a country.
+
+-   On an average, women live longer than men. To be more precise, 57% of all individuals aged 65 or above are women. A better comparison would be that women live about 7 years longer than men worldwide **(Harvard Health Publishing 2020)**.
+
+-   The fact that women live longer than men was not always true, in-fact, in the 19^th^ century the situation was opposite **(Our** **World in Data 2018)**. There are biological reasons as to why it happens, but, we intend to find-out if there is any **statistical** evidence to support the claim.
+
+-   This presentation explores The World Bank Data on Life Expectancy at birth for both females and males dating from the year 2010 to 2020.
+
+# Introduction Cont.
+
+-   To provide a glimpse of difference in life expectancy around the world between female and male:
+
+    <center>
+
+    ![Figure 1. Difference in Life Expectancy Between Female and Male by IHME, 2018](images/_101581109_optimised-chart5-nc.png){width="459"}
+
+    </center>
+
+-   We can now deep dive into our statistical investigation regarding the subject at-hand.
+
+# Problem Statement
+
+The aim is to assess the statistical significance in life expectancy at birth between females and males. This involves employing a two-sample t-test to compare the life expectancy figures of both genders. To ensure the validity of the test, initial steps include checking for equal variances using Levene's Test of Equal Variance. If the obtained p-value from the t-test falls below the chosen significance level (typically 0.05, denoted as 𝛂), the Null Hypothesis $H_0$ is rejected. Conversely, if the p-value is higher, we fail to reject the $H_0$. Another approach involves examining the confidence intervals derived from the two-sample t-test as an additional method to either reject or fail to reject the $H_0$.
+
+# Data
+
+-   To propel our investigation, we obtained the original datasets---Life Expectancy at birth for males (years) and females (years)---sourced from the World Bank (The World Bank 2022). These data sets underwent a process of consolidation and tidying to create our project's dataset.
+
+-   Initially spanning data from 1960 to 2020 for both genders, we narrowed our focus to the latest decade, specifically from 2010 to 2020, utilizing R's data-frame subset syntax. Filtering out any entries lacking data for at least one year was accomplished using the complete.cases function, ensuring our dataset contained no NA values. This curation process was separately applied to both the male and female datasets.
+
+-   A consequence of using the read.csv function was the prefix "X" added to individual year columns. Employing the gsub function, we removed this prefix. Furthermore, columns featuring the period operator (.) in their names were restructured using the colnames function.
+
+-   Within each dataset, a column titled "Identifier Name" indicated gender affiliation, subsequently relabeled as "Gender" for both datasets. To enhance analysis, we transformed the Country Name, Country Code, and Year columns into Factor variables using the factor method.
+
+-   Merging the datasets via the bind_rows function, we converted the "Gender" column into a Factor variable and saved the resultant dataframe as a .csv file using the write.csv function.
+
+# Data (Continued)
+
+-   The final data-set is called **Life**, and it has the following variables:
+
+    | [Variable Name]{.underline} |                  [Variable Description]{.underline}                   | [Data - Type]{.underline} |
+    |:----------------:|:----------------------------------:|:----------------:|
+    |        Country Name         |                        Country of observation                         |          Factor           |
+    |        Country Code         |                    Country Code (as set by source)                    |          Factor           |
+    |            Year             |                        The time of observation                        |          Factor           |
+    |           Gender            |                     Denoting each Gender (infant)                     |          Factor           |
+    |       Life Expectancy       | Number of years an infant would live given the current mortality rate |          Numeric          |
+
+-   The columns "Country Name" and "Country Code" encompass 247 levels, signifying distinct countries (the count exceeds the world's total due to subdivision by continent and region).
+
+-   Regarding the "Year" variable, it spans 11 levels, representing the years from 2010 to 2020. The "Gender" variable contains 2 levels, namely Male and Female.
+
+-   The numeric variables for "Life Expectancy" at birth, irrespective of gender, fall within the range of 40 to 90.
+
+# Descriptive Statistics and Visualization
+
+-   We will be dealing with only one numeric variable *Life Expectancy.*
+-   Looking at a sample of the data-set. It shows the country "Aruba" for the various years.
+
+```{r}
+#Looking at first 6 observations
+head(Life) -> head1
+kable(head1)
+```
+
+-   Checking for any missing values:
+
+```{r}
+#Looking for missing values 
+sum(is.na(Life))
+```
+
+# Descriptive Statistics (Continued)
+
+-   Let us look into the descriptive statistics of the data-frame '**Life**' for each gender's life expectancy.
+
+```{r}
+#Summary Statistics of Life Expectancy
+Life %>% group_by(Gender) %>% summarise(Minimum = min(`Life Expectancy`, na.rm = TRUE),
+                                           Q1 = quantile(`Life Expectancy`,probs = .25,na.rm = TRUE),
+                                           Median = median(`Life Expectancy`, na.rm = TRUE),
+                                           Q3 = quantile(`Life Expectancy`,probs = .75,na.rm = TRUE),
+                                           Maximum = max(`Life Expectancy`,na.rm = TRUE),
+                                           Mean = mean(`Life Expectancy`, na.rm = TRUE),
+                                           Standard_Deviation = sd(`Life Expectancy`, na.rm = TRUE),
+                                           Total_Values = n(),
+                                           Missing = sum(is.na(`Life Expectancy`)))-> Summary1
+
+kable(Summary1)
+```
+
+# Descriptive Statistics (Continued)
+
+Let us also look into a box-plot to check if Males and Females have different average life expectancy.
+
+```{r fig.height=4, fig.width=6}
+Life %>% boxplot(`Life Expectancy` ~ Gender, data=., main="Plot 1. Box Plot of Life Expectancy of Males and Females", col = brewer.pal(1,"PuBuGn"))
+```
+
+-   It's not immediately apparent, but upon reviewing the descriptive statistics and the box plot, it suggests that females might have a higher life expectancy. However, this observation prompts the question: is this difference due to chance or is there substantive evidence supporting it? Conducting a two-sample t-test would provide clarity on whether this observed difference is statistically significant or merely a product of the sample chosen.
+
+**Note:** We have not removed the quartile based outliers as depicted in the box-plot, because from the descriptive statistics performed earlier, we know that there is no considerably different value. Moreover, Age points cannot be considered as an outlier.
+
+# Testing the Assumption of Normality
+
+-   Since our sample size is significantly large (n \>30), we can proceed with the normality assumption voided **(Module 6, 2022)**.
+-   But, let us visually check normality by the use of Q-Q plots, which would help us compare our distribution with that of what a normally distributed data would look like. Let us look at Q-Q plot for Males, and check if they follow a normal distribution.
+
+```{r,fig.cap=' ',fig.subcap=c('(a)','(b)'),fig.ncol=2,fig.align='center',out.width='38%'}
+#Q-Q Plot for Males
+Life_Expect_Male <- Life %>% filter(Gender=="Male")
+Life_Expect_Male$`Life Expectancy` %>% qqPlot(dist="norm", main ="Plot 2. Q-Q Plot for Life Expectancy of Males", ylab = "Age (Years)",
+                                              col = brewer.pal(1,"RdPu")) 
+hist(Life_Expect_Male$`Life Expectancy`, main = "Plot 3. Histogram for Life Expectancy of Males", xlab = "Age (Years)",col = brewer.pal(2,"PuBuGn")) 
+```
+
+# Testing the Assumption of Normality (Continued)
+
+Observing the plots from the above code chunk:
+
+-   Despite the left skew evident in the distribution, the sample size being larger than 30 assures us that the sampling distribution of the mean would approximate a Normal Distribution. Hence, concerns about normality are alleviated as the Central Limit Theorem remains applicable.
+
+-   Moreover, the deviation of most points from the 95% Confidence Interval and the presence of the 'S' shape in the Q-Q plot indicate that our sample likely originated from a non-Gaussian population.
+
+In the next slide, we will look at the plots for Females.
+
+# Testing the Assumption of Normality (Continued)
+
+-   Let us look at Q-Q plot for Females, and check if they follow a normal distribution.
+
+```{r,fig.cap=' ',fig.subcap=c('(a)','(b)'),fig.ncol=2,fig.align='center',out.width='38%'}
+#Q-Q Plot for Females
+Life_Expect_Female <- Life %>% filter(Gender=="Female")
+Life_Expect_Female$`Life Expectancy` %>% qqPlot(dist="norm", main =" Plot 4. Q-Q Plot for Life Expectancy of Females", ylab = "Age (Years)",
+                                                col = brewer.pal(1,"RdPu"))
+hist(Life_Expect_Female$`Life Expectancy`, main = "Plot 5. Histogram for Life Expectancy of Females", xlab = "Age (Years)",col = brewer.pal(2,"PuBuGn"))
+```
+
+The Q-Q Plot and histogram for Female Life Expectancy, much like the Male counterparts, exhibit a leftward skew. Similar to the previous observation, an 'S' shape is noticeable, yet the points deviate from the 95% Confidence Interval at the top, indicative of a heavier left-sided tail, as depicted in the histogram.
+
+In the next slide, we check the assumption of equal variance.
+
+# Hypothesis Testing - *Homogeneity of Variance*
+
+-   So, we need to know if there is equal variance among the two groups.
+-   We will do so by the **Levene's Test.** The test has the following hypothesis:
+
+$$H_0: \sigma^2_1 = \sigma^2_2$$ $$H_A: \sigma^2_1 ≠ \sigma^2_2$$ Where $\sigma^2_1$ and $\sigma^2_2$ refer to the population variance of both groups (Males and Females).
+
+```{r}
+#Performing the Levene's Test
+leveneTest(`Life Expectancy` ~ Gender, data = Life)
+```
+
+The *p-value* obtained from the Levene's Test is 0.001015 approximately, which is less than 0.05, therefore, we can reject our Null Hypothesis $H_0$ **(Module 7, 2022)**. Effectively, it means that we cannot assume equal variance for Life Expectancy between males and females.
+
+# Hypothesis Testing (Continued) - *Two Sample t-test*
+
+-   Given the statistically significant outcome from the Levene's Test, indicating unequal variances, we proceed to conduct the Welch Two Sample t-test without assuming equal variance. The statistical hypotheses for our two-sample t-test are as follows:$$H_0: \mu_1-\mu_2 = 0 $$ $$H_A: \mu_1-\mu_2 ≠ 0$$
+
+Where $\mu_1$ and $\mu_2$ are the population means of group 1 and group 2 respectively. The Null Hypothesis posits that the disparity in means between the two distinct population means is zero, implying that the average Life Expectancy difference between Females and Males is nonexistent. With this premise, we're ready to proceed with our t-test.
+
+```{r}
+# Performing t-test
+t.test(`Life Expectancy` ~ Gender, data=Life, var.equal = FALSE, alternative = "two.sided" )
+```
+
+-   We can observe that the *p-value* is really small even less than 0.5 ($\alpha$, significance level) , therefore, we can say that our decision is to reject the Null Hypothesis $H_0$ , and also our the 95% Confidence Interval of the estimated population difference [4.38,5.22] did not capture the Null Hypothesis $H_0: \mu_1-\mu_2=0$ . Therefore, the results of the two-sample *t-test* were statistically significant.
+
+# Discussion
+
+A comparison between the life expectancies of females and males was conducted using a two-sample t-test, despite non-normal distributions indicated by Q-Q and histogram plots. However, the sizable sample size allowed application of the t-test through the Central Limit Theorem, despite non-normality. The assumption of equal variance, evaluated via Levene's Test, revealed unequal variance between the groups.
+
+Utilizing the two-sample t-test with unequal variance assumptions, a statistically significant difference emerged between the life expectancies of females and males $t(df=5398.2)=22.402, p-value < 2.2e-16$, 95% CI for the difference in means [4.38,5.22]). These findings imply a non-zero disparity in life expectancies, favoring females with a higher life expectancy compared to males.
+
+An important limitation arises from countries lacking complete data, restricting this study's conclusions for those specific regions. Conversely, this research enables generalizations regarding life expectancy trends in the recent period. Notably, historical data reveals that the pattern of higher female life expectancy was not consistent, particularly in the 19th century, thus results from that era's population would likely differ.
+
+There's ample room for future exploration, focusing on country-specific analyses to potentially uncover instances where males might exhibit higher life expediencies. By delving deeper into these countries, we may gain insights into the underlying reasons behind these variations, considering both societal and biological factors.
+
+Reflecting on our initial inquiry, there's current statistical evidence pointing to a disparity in life expectancy between genders, favoring females with a higher average.
+
+The key takeaway emphasizes that while our findings support the notion of better life expectancy for females, it's essential to approach this conclusion cautiously. Environmental shifts and evolving lifestyle habits could alter these dynamics in the coming years, underscoring the need for continual reevaluation
+
+# References
+
+1.  The World Bank Data 2022, *Life expectancy at birth, male(years)*, data file, The World Bank, viewed 12^th^ May 2022, <https://data.worldbank.org/indicator/SP.DYN.LE00.MA.IN>
+
+2.  The World Bank Data 2022, *Life expectancy at birth, female(years)*, data file, The World Bank, viewed 12^th^ May 2022, <https://data.worldbank.org/indicator/SP.DYN.LE00.FE.IN>
+
+3.  Calver, T and Stylianou, N 2018, *Nine facts about how long we live,* BBC, viewed 14^th^ May 2022, <https://www.bbc.com/news/health-43726436>
+
+4.  Shmerling, R 2020, *Why men often die earlier than women*, Harvard Health Publishing, viewed 14^th^ May 2022, <https://www.health.harvard.edu/blog/why-men-often-die-earlier-than-women-201602199137>
+
+5.  Ospina, E and Beltekian, D 2018, *Why do women live longer than men*, viewed 14^th^ May 2022, <https://ourworldindata.org/why-do-women-live-longer-than-men>
+
+6.  Ospina, E 2017, "*Life Expectancy" - What does this actually mean?*, viewed 14^th^ May 2022, <https://ourworldindata.org/life-expectancy-how-is-it-calculated-and-how-should-it-be-interpreted>
+
+7.  Baglin, J. (2022), Module 6 Estimating Uncertainty Confidently, Applied Analytics, viewed 16^th^ May 2022, <https://astral-theory-157510.appspot.com/secured/index.html>
+
+8.  Baglin, J. (2022), Module 7 Testing the Null: Data on Trial, Applied Analytics, viewed 16^th^ May 2022, <https://astral-theory-157510.appspot.com/secured/index.html>
