@@ -38,9 +38,9 @@ library(RColorBrewer)
 library(moments)
 
 # Reading the csv files 
-melbourne <- read.csv("/Users/sharanpreet/Desktop/RMIT University/1st Semester/Applied Analytics/Applied Data Project - 1/Climate Data-Melbourne.csv")
+melbourne <- read.csv("/Climate Data-Melbourne.csv")
 
-sydney <- read.csv("/Users/sharanpreet/Desktop/RMIT University/1st Semester/Applied Analytics/Applied Data Project - 1/Climate Data-Sydney.csv")
+sydney <- read.csv("Climate Data-Sydney.csv")
 ```
 
 Let us have a look at the structure for either of the data-sets.
