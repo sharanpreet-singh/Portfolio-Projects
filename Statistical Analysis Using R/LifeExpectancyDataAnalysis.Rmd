@@ -1,14 +1,7 @@
 ---
 title: "Investigating the Global Life Expectancy Data"
 subtitle: "To search for a statistical evidence in the difference of life expectancy at birth between Females and Males"
-author: "Sharanpreet Singh  s3937560"
-date: "Last updated: `r format(Sys.time(), '%d %B, %Y')`"
-output:
-  slidy_presentation:
-    font_adjustment: 0
-    highlight: haddock
-    mathjax: "default"
-    df_print: paged
+author: "Sharanpreet Singh "
 ---
 
 ```{r setup, include=FALSE}
