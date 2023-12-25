@@ -1,0 +1,321 @@
+---
+title: "Statistical Analysis of Climate Data"
+author: "Sharanpreet Singh"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## I. Overview
+
+For the purpose of this project, we want to analyse the climate data for the cities of Melbourne and Sydney. These data-sets have been sourced from the Australian Bureau of Meteorology (Bureau of Meteorology, 2022).
+
+Each of the data-sets contain 90 observations contain 90 observations about the maximum wind speed, maximum temperature, and solar exposure dating from December 2021 to February 2022 (included). The information about the variables is provided in the table below:
+
+|      Variable       | Description                                                             |   Unit   |
+|:------------------:|:--------------------------------|:-----------------:|
+| Maximum Wind Speed  | The highest wind speed for the 24 hours leading up to the observation   |   km/h   |
+| Maximum Temperature | The highest temperature for the 24 hours leading up to the observation. |    °C    |
+|   Solar Exposure    | It is the total solar energy for a day falling on a horizontal surface. | MJ m^-2^ |
+
+For the purpose of our analysis, we will consider only two variables; Maximum Temperature and Solar Exposure.
+
+## II. Aim
+
+*The project aims to analyse if the variables Maximum Temperature and Solar Exposure fit a normal distribution by comparing the empirical distribution of both the variables to a normal distribution.*
+
+## III. Working / Methodology
+
+We will begin by loading the packages and the .csv files that we will need for achieving our goal for the project.
+
+```{r}
+# Loading Working Packages
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(RColorBrewer)
+library(moments)
+
+# Reading the csv files 
+melbourne <- read.csv("/Users/sharanpreet/Desktop/RMIT University/1st Semester/Applied Analytics/Applied Data Project - 1/Climate Data-Melbourne.csv")
+
+sydney <- read.csv("/Users/sharanpreet/Desktop/RMIT University/1st Semester/Applied Analytics/Applied Data Project - 1/Climate Data-Sydney.csv")
+```
+
+Let us have a look at the structure for either of the data-sets.
+
+```{r}
+#Checking the class and the dimensions of the data-sets
+class(melbourne)
+class(sydney)
+dim(melbourne)
+dim(sydney)
+```
+
+From the above outputs, we can infer that both the data-sets have been imported as data-frames and both of them have 90 rows and 7 columns.
+
+We also need to check for any missing values and treat them accordingly. If they go undetected it can result in incorrect results.
+
+```{r}
+#Checking for missing values
+sum(is.na(melbourne))
+sum(is.na(sydney))
+```
+
+Hence, there are no null values present in the data-sets. Now, we can look at the format of our data-frame.
+
+```{r}
+#Viewing a sample for the Melbourne data-set 
+head(melbourne)
+```
+
+```{r}
+# Viewing a sample for the Sydney Data-set
+head(sydney)
+```
+
+Since, we are analyzing only the Maximum Temperature and Solar Exposure, we can remove all the unwanted columns from the datasets.
+
+```{r}
+#Modifying the data-frames
+melbourne <- melbourne[,c(1,5,6)]
+sydney <- sydney[,c(1,5,6)]
+
+#Viewing the modifyied data-frames 
+melbourne 
+sydney
+
+#Changing the name of the station number column for both the data-sets
+colnames(melbourne)[1] <- "Station Number"
+colnames(sydney)[1] <- "Station Number"
+```
+
+For the purpose of easier analysis, we will bind both the data-sets together using the foreign key `Station Number`.
+
+```{r}
+# Binding both the data-frames 
+climate <- rbind(melbourne, sydney)
+
+#Changing column names for easier interpretation 
+colnames(climate)[2:3] <- c("Maximum_Temperature", "Solar_Exposure")
+```
+
+We can also change the station numbers to be represented by their city names for easier understanding moving forward.
+
+```{r}
+# Changing Station Numbers to Station Names 
+climate$`Station Number` <- factor(climate$`Station Number`, levels = c(86282,66212), labels = c("Melbourne","Sydney"))
+
+#Changing the name of the column from Station Number to Station 
+colnames(climate)[1] <- c("Station")
+```
+
+Let us now look at some summary statistics for both the cities.
+
+```{r}
+# Understanding Maximum Temperature 
+
+climate %>% group_by(Station) %>% summarise(Mean = mean(Maximum_Temperature), Median = median(Maximum_Temperature), Standard_Deviation = sd(Maximum_Temperature), First_Quartile = quantile(Maximum_Temperature, probs =.25), Third_Quartile = quantile(Maximum_Temperature, probs =.75), Interquartile_Range = IQR(Maximum_Temperature), Minimum = min(Maximum_Temperature), Maximum = max(Maximum_Temperature))
+```
+
+We can infer from the above results that the Maximum Temperatures were 38.4 and 37.8 Degree Celsius for Melbourne and Sydney respectively, while the lowest had quite a difference between both the cities at 14.9 and 19.7 respectively.
+
+Similarly, we can check for Solar Exposure
+
+```{r}
+# Understanding Solar Exposure 
+
+climate %>% group_by(Station) %>% summarise(Mean = mean(Solar_Exposure), Median = median(Solar_Exposure), Standard_Deviation = sd(Solar_Exposure), First_Quartile = quantile(Solar_Exposure, probs =.25), Third_Quartile = quantile(Solar_Exposure, probs =.75), Interquartile_Range = IQR(Solar_Exposure), Minimum = min(Solar_Exposure), Maximum = max(Solar_Exposure))
+```
+
+Similar to the case of Maximum Temperature, we have an almost similar Maximum values at 32.0 and 32.2 for Melbourne and Sydney respectively. However, the minimum solar exposure also is approximately the same as well at 3.4 and 3.0.
+
+For understanding the distribution of the variables, skewness and kurtosis are good measures for doing so other then plotting a histogram.
+
+```{r}
+#To calculate for Melbourne 
+climate_melbourne <- climate[climate$Station == 'Melbourne',]
+
+#To calculate the statistics
+#Kurtosis
+kurtosis(climate_melbourne$Maximum_Temperature) %>% round(3)
+
+#Kurtosis
+kurtosis(climate_melbourne$Solar_Exposure) %>% round(3)
+
+#Skewness for Maximum temperature
+skewness(climate_melbourne$Maximum_Temperature) %>% round(3)
+
+#Skewness for Solar Exposure
+skewness(climate_melbourne$Solar_Exposure) %>% round(3)
+```
+
+```{r}
+# Calculating the same for Sydney 
+climate_sydney <- climate[climate$Station == 'Sydney',]
+
+#To calculate the statistics
+#Kurtosis
+kurtosis(climate_sydney$Maximum_Temperature) %>% round(3)
+
+#Skewness
+kurtosis(climate_sydney$Solar_Exposure) %>% round(3)
+
+#Skewness for Maximum temperature
+skewness(climate_sydney$Maximum_Temperature) %>% round(3)
+
+#Skewness for Solar Exposure
+skewness(climate_sydney$Solar_Exposure) %>% round(3)
+```
+
+A negative skewness (𝛄) indicates a leftward tail in the distribution, while a positive 𝛄 implies a rightward tail. The skewness of the Temperature in Melbourne is extremely close to zero, signifying that the distribution will be nearly perfectly symmetrical.
+
+Kurtosis tells us that if a distribution is heavily tailed or lightly tailed in relation to a normal distribution.
+
+Based on the values mentioned earlier, it's evident that the Maximum Temperature and Solar Exposure distribution in Melbourne, as well as the Solar Exposure distribution in Sydney, would show fewer extreme anomalies compared to a standard distribution. This is due to their Kurtosis being less than 3. The Solar Exposure distribution in Sydney also follows this trend. On the other hand, the Maximum Temperature in Sydney has a Kurtosis exceeding 3, indicating it would exhibit more outliers compared to a normal distribution with a Kurtosis of 3.
+
+```{r}
+# Calculating mode of each attribute 
+
+mode_Temp_M <- table(as.vector(climate_melbourne$Maximum_Temperature))
+names(mode_Temp_M)[mode_Temp_M == max(mode_Temp_M)]
+
+mode_Temp_S <- table(as.vector(climate_sydney$Maximum_Temperature))
+names(mode_Temp_S)[mode_Temp_S == max(mode_Temp_S)]
+
+mode_Solar_M <- table(as.vector(climate_melbourne$Solar_Exposure))
+names(mode_Solar_M)[mode_Solar_M == max(mode_Solar_M)]
+
+mode_Solar_S <- table(as.vector(climate_sydney$Solar_Exposure))
+names(mode_Solar_S)[mode_Solar_S == max(mode_Solar_S)]
+```
+
+Given that we're analyzing normal distributions, an essential aspect is the mode. The provided code lines designate variables for Maximum_Temperature and Solar_Exposure in both Melbourne and Sydney. It utilizes table and as.vector functions to transform the data into a vector format. Using the names function, we identify the values that occur most frequently. In the case of Maximum_Temperature and Solar_Exposure in Melbourne, there are two values with equal occurrence.
+
+With this preliminary understanding of our distribution, we can now proceed to Distribution Fitting.
+
+## Distribution Fitting
+
+1.  **Plotting the empirical distribution of Maximum Temperature in Melbourne, and comparing it to the normal distribution.**
+
+```{r echo=TRUE, fig.height=4, fig.width=8,fig.align='center'}
+# Distribution Fitting of Maximum Temperature in Melbourne 
+climate_melbourne$Maximum_Temperature %>% hist(., breaks = 30, col = brewer.pal(3,"GnBu"), freq = FALSE, xlab = "Maximum Temperature per Day in Melbourne (°C)", xlim= c(0,50), main = "Plot 1. Distribution of Maximum Temperature in Melbourne") 
+
+# Overlaying the normal distribution curve 
+curve(dnorm(x, mean = mean(climate_melbourne$Maximum_Temperature),sd=sd(climate_melbourne$Maximum_Temperature)),add=TRUE, lwd=2)
+
+# Plotting a vertical line for representing mean and median of Maximum Temperature in Melbourne
+climate_melbourne$Maximum_Temperature %>% mean() %>% abline(v=.,col="red",lw=2)
+climate_melbourne$Maximun_Temperature %>% median() %>% abline(v=.,col="darkgreen",lw=2)
+```
+
+In the depicted chart, we compared the observed distribution of Maximum_Temperature in Melbourne with a normal distribution. Initially, a histogram was plotted using "breaks = 30" and "Freq = FALSE" to display density on the y-axis. The red and dark-green vertical lines on the graph correspond to the mean and median of the Maximum Temperature attribute in Melbourne.
+
+In a normal distribution, the mean, median, and mode share the same value. For the normal distribution plot, we created a density curve using the `dnorm` function and the `curve` function, considering the mean and standard deviation of the Maximum_Temperature feature.
+
+Since the mean (27.02) and median (26.85) are very close, the histogram appears almost symmetrical. However, there's a slight right skew as indicated by the skewness value (𝛄 = 0.007), which is not a perfect zero.
+
+```{r cho=TRUE, fig.height=4, fig.width=6,fig.align='center'}
+
+# Plotting a Q-Q plot for Maximum Temperature in Melbourne
+ggplot(data = climate_melbourne, aes(sample=Maximum_Temperature)) + geom_qq(color="green")+ geom_qq_line(color = "black", size =1) + ggtitle("Plot 2. Normal Q-Q Plot for Maximum Temperature (Melbourne)") + labs(y = "Maximum Temperature (°C)", x="Theoretical Quantile")+theme(plot.title = element_text(hjust = 0.5))
+```
+
+Regarding the code, we've employed the ggplot library. The `geom_qq_line` function is used to draw the 45° line, and `element_text(hjust=0.5)` is utilized to center-align the plot's title.
+
+We've created a Quantile-Quantile (Q-Q) Plot to assess the compatibility of our distribution with a normal distribution. Observing the plot above, it's evident that the data points do not closely follow the 45° line (represented by the bold black line). Consequently, we can infer that our dataset originates from a population with a different distribution, indicating it does not adhere to a normal distribution.
+
+2.  **Plotting the empirical distribution of Solar Exposure in Melbourne, and comparing it to the normal distribution.**
+
+```{r echo = TRUE, fig.height=4, fig.width=8,fig.align='center'}
+# Distribution Fitting of Solar Exposure in Melbourne 
+
+climate_melbourne$Solar_Exposure %>% hist(., breaks = 30, col = brewer.pal(3,"Oranges"), freq = FALSE, xlab = "Solar Exposure per Day in Melbourne (MJ m^-2)", xlim= c(0,45), main = "Plot 3. Distribution of Solar Exposure in Melbourne") 
+
+# Overlaying the normal distribution curve 
+
+curve(dnorm(x, mean = mean(climate_melbourne$Solar_Exposure),sd=sd(climate_melbourne$Solar_Exposure)),add=TRUE, lwd=2)
+
+# Plotting a vertical line for representing mean and median of Solar Exposure in Melbourne
+
+climate_melbourne$Solar_Exposure %>% mean() %>% abline(v=.,col="red",lw=2)
+climate_melbourne$Solar_Exposure %>% median() %>% abline(v=.,col="darkgreen",lw=2)
+```
+
+In Plot 3, depicting Solar_Exposure in Melbourne, it's noticeable that the median precedes the mean. As previously determined, the skewness is -0.59, affirming this observation and indicating a slight leftward skew in the data.
+
+3.  **Plotting the empirical distribution of Maximum Temperature in Sydney, and comparing it to the normal distribution.**
+
+```{r echo=TRUE, fig.height=4, fig.width=8,fig.align='center'}
+
+# Distribution Fitting of Maximum Temperature in Sydney 
+climate_sydney$Maximum_Temperature %>% hist(., breaks = 30, col = brewer.pal(3,"RdPu"), freq = FALSE, xlab = "Maximum Temperature per Day in Sydney (°C)", xlim= c(15,40), main = "Plot 5. Distribution of Maximum Temperature in Sydney") 
+
+# Overlaying the normal distribution curve 
+curve(dnorm(x, mean = mean(climate_sydney$Maximum_Temperature),sd=sd(climate_sydney$Maximum_Temperature)),add=TRUE, lwd=2)
+
+# Plotting a vertical line for representing mean and median of Maximum Temperature in Sydney
+climate_sydney$Maximum_Temperature %>% mean() %>% abline(v=.,col="red",lw=2)
+climate_sydney$Maximum_Temperature %>% median() %>% abline(v=.,col="darkgreen",lw=2)
+```
+
+In Plot 5, it's evident that the mean and median lines are closely aligned, with a minimal difference of 0.16 between their values. The skewness is 0.47, indicating a slight rightward skew in the data, as observable in the bins on the right side of the plot. Furthermore, the kurtosis value of 3.111 signifies that the data in this plot contains more outliers compared to what would be present in a normal distribution, given that the kurtosis is greater than 3.
+
+```{r echo=TRUE, fig.height=4, fig.width=6, fig.align='center'}
+
+# Plotting a Q-Q plot for Maximum Temperature in Sydney
+ggplot(data = climate_sydney, aes(sample=Maximum_Temperature)) + geom_qq(color="maroon")+ geom_qq_line(color = "black", size =1) + ggtitle("Plot 6. Normal Q-Q Plot for Maximum Temperature (Sydney)") + labs(y = "Maximum Temperature (°C)", x="Theoretical Quantile")+theme(plot.title = element_text(hjust = 0.5))
+```
+
+While a considerable number of points in the plot align closely to the line, there are some noticeable outliers, likely due to the kurtosis being greater than 3. Despite this, when compared to other plots, this plot appears to be the closest to resembling a normal distribution.
+
+4.  **Plotting the empirical distribution of Solar Exposure in Sydney, and comparing it to the normal distribution.**
+
+```{r echo=TRUE, fig.height=4, fig.width=8,fig.align='center'}
+
+# Distribution Fitting of Solar Exposure in Sydney 
+climate_sydney$Solar_Exposure %>% hist(., breaks = 30, col = brewer.pal(3,"RdBu"), freq = FALSE, xlab = "Solar Exposure per Day in Sydney (MJ m^-2)", xlim= c(-10,50), main = "Plot 7. Distribution of Solar Exposure in Sydney") 
+
+# Overlaying the normal distribution curve 
+curve(dnorm(x, mean = mean(climate_sydney$Solar_Exposure),sd=sd(climate_sydney$Solar_Exposure)),add=TRUE, lwd=2)
+
+# Plotting a vertical line for representing mean and median of Solar Exposure in Sydney
+climate_sydney$Solar_Exposure %>% mean() %>% abline(v=.,col="red",lw=2)
+climate_sydney$Solar_Exposure %>% median() %>% abline(v=.,col="darkgreen",lw=2)
+```
+
+Observing the data for Solar_Exposure in Sydney, it's apparent that the median is ahead of the mean. Additionally, the skewness (𝛄) being -0.393 indicates that the distribution has a tail on the left-hand side.
+
+```{r echo=TRUE, fig.height=4, fig.width=6,fig.align='center'}
+
+# Plotting a Q-Q plot for Solar Exposure in Sydney
+ggplot(data = climate_sydney, aes(sample=Solar_Exposure)) + geom_qq(color="purple")+ geom_qq_line(color = "black", size =1) + ggtitle("Plot 8. Normal Q-Q Plot for Solar Exposure (Sydney)") + labs(y = "Solar Exposure (MJ m^-2)", x="Theoretical Quantile")+theme(plot.title = element_text(hjust = 0.5))
+```
+
+The Q-Q Plot presented above confirms that although a significant number of points align approximately with the reference line, the noticeable deviation indicates that the Solar_Exposure in Sydney does not conform to a normal distribution.
+
+## Discussion and Take-Away
+
+According to the given problem statement, we were tasked with comparing the distributions of two selected variables from the climate dataset in Melbourne and Sydney. A normal distribution is characterized by having the same values for mean, median, and mode.
+
+Our approach involved plotting the attributes (Maximum_Temperature and Solar_Exposure) for both cities as histograms. This allowed us to examine skewness, kurtosis, and outliers in the data. To compare our dataset's distribution with a normal one, we overlaid a normal distribution curve on the histograms. We also plotted a Quantile-Quantile scatter plot to compare our distribution with a normal distribution. This helped us gain insights into the possible underlying distribution, such as Weibull, Poisson, or others. By first calculating summary statistics, we had a rough idea of what the plots might look like, considering the mean, median, and standard deviation.
+
+Here are the insights derived from the tasks performed in the earlier sections:
+
+For the distribution of Maximum_Temperature and Solar_Exposure in Melbourne: The Temperature curve did not resemble a normal distribution. Although the skewness coefficient '𝛄' was very close to zero (0.007) and the mean and median values were similar, the mode values were far from what they should be for the Maximum_Temperature attribute to form a normal distribution curve. The kurtosis value of 2.13 was significantly lower than 3, indicating that most of the values for this attribute were not concentrated in the center of the distribution. Similarly, Solar Exposure's distribution in Melbourne was slightly left-skewed (skewness coefficient '𝛄' was -0.59), and the mode was far from what is expected for a normal distribution curve.
+
+Hence, both attributes for Melbourne did not closely resemble a normal distribution.
+
+1.  Regarding the distribution of Maximum_Temperature and Solar_Exposure in Sydney: Similar to Melbourne, the distribution of values for Maximum Temperature in Sydney did not fit a normal distribution. The mean and median were similar, but the skewness coefficient '𝛄' was 0.47 with a kurtosis value of 3.111, indicating a right-skewed distribution with most values concentrated in the center. Solar Exposure in Sydney had mean and median values that were slightly different compared to Melbourne, but with a comparable kurtosis value. The skewness coefficient '𝛄' was much closer to that of a normal distribution for Sydney, but it still did not represent a normal distribution curve.
+2.  In the case of Maximum_Temperature in both Melbourne and Sydney, we couldn't assume normality. While summary statistics (mean, median, and mode) had similar values, the interquartile range was approximately 1.66 times the standard deviation (≅ 1.66𝜎), but it was not close to 6 times the standard deviation.
+
+Our datasets almost resembled a normal distribution and were only slightly skewed in either direction. Looking at the Q-Q plots for each attribute in each city, Maximum_Temperature for both Sydney and Melbourne was the closest fit to a normal distribution. Considering that the datasets used in this assignment are just samples from the larger climate change dataset, and the sample size in both sampled datasets is 90 (i.e., n \> 30), we can infer that the sample distribution of the mean would be a normal distribution (Central Limit Theorem would apply). Also, acknowledging sampling errors, we can't expect all the points in the Q-Q plot to align precisely on the 45° reference line for a normal distribution. There were evident departures from normality in the case of Maximum_Temperature and Solar_Exposure in Melbourne, and Solar_Exposure in Sydney, as shown by the 'S' shaped curve formed by the points in each of these cases. Note that we did not consider 95% Confidence Intervals in the Q-Q Plots, so we cannot definitively state that they do not follow a normal distribution curve. In conclusion, given the sample size in each dataset is \> 30 (i.e., n = 90), and considering the large 'n' size, we can proceed to other statistical tests or hypotheses even without factoring in Confidence Intervals.
+
+## References
+
+1.  Bureau of Meteorology 2022, *Climate,* Australia's Climate Data Online, Australian Government, Bureau of Meteorology, Melbourne, viewed 9^th^ April 2022, <http://www.bom.gov.au/climate/data/index.shtml?bookmark=136>
+2.  Bureau of Meteorology 2022, *Climate,* Australia's Climate Data Online, Australian Government, Bureau of Meteorology, Sydney, viewed 9^th^ April 2022, <http://www.bom.gov.au/climate/data/index.shtml?bookmark=136>
