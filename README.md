@@ -53,8 +53,8 @@ In this repository, I've compiled my data analysis projects that demonstrate my 
 ## Technologies Used 💻🧑‍💻
 - Programming Languages: R, Python and  SQL 
 - Working Environments: R-Studio, Jupyter Notebooks, and PostgreSQL
-- Tools or Libraries: Numpy, Pandas, NLP, matplotlib, and scikit
-- Visualisation Tools: Tableau and Excel
+- Tools or Libraries: Numpy, Pandas, NLP, matplotlib, and Scikit
+- Visualisation Tools: Tableau, Excel, and GGPlot2
 
 
 ### Thank you for visiting. 
