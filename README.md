@@ -38,15 +38,15 @@ In this repository, I've compiled my data analysis projects that demonstrate my 
   
 ### Project 4: 
 - **Description**: Analysing and Predicting Gasoline Prices using Time Series Analysis
-- Tools/ Languages Used: R Programming 
+- Tools/ Languages Used: R Programming (R-Studio)
 - Abstract: The analysis of Average Gasoline Prices from 2013 to 2023 revealed consistent levels below $3 per gallon, except for a significant rise post-pandemic. Differencing was favored as it yielded satisfactory outcomes with minimal data loss. Based on the model, the forecast predicts gasoline prices between $3.6 to $4.0 per gallon in the next 10 months from the dataset's last recorded month.
 - Visualisation:
 - Repository Link:
   
 ### Project 5: 
-- **Description**:
-- Tools/ Languages Used:
-- Abstract:
+- **Description**: Understanding Regression Techniques via Implementation on International Tourism Data
+- Tools/ Languages Used: R Programming (R-Studio)
+- Abstract: The dataset was split for model testing, focusing on unseen data. Initially, all regression variables pointed to 'Tourism Expenditure' as highly significant, explaining 98.77% variance and meeting assumptions. Refinement via Backward Elimination sustained significance in variables, but Model 3 with only 'Tourism Expenditure' showed less overfitting yet failed linearity and variance assumptions. Model comparison favored Model 2, displaying better adaptability to new data with a lower PRESS statistic, leading to its deployment after thorough evaluation.
 - Visualisation:
 - Repository Link:
 
