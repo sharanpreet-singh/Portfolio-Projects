@@ -30,7 +30,7 @@ In this repository, I've compiled my data analysis projects that demonstrate my 
 - Repository Link:
   
 ### Project 3:
-- **Description**: Predicting Who Would Subscribe for a Term Deposit at the Bank
+- **Description**: Predicting Who Would Subscribe for a Term Deposit at the Bank (Divided into Phase 1 and Phase 2)
 - Tools/ Languages Used: Python Programming (Jupyter Notebooks)
 - Abstract: The study aimed to identify key features and predict term deposit subscriptions. Despite slightly lower cross-validation scores, the Decision Tree Model showed strong performance in estimating subscription likelihood, especially crucial in banking for revenue maximization. Ultimately, the Decision Tree Model stood out as the preferred tool for forecasting term deposit subscriptions, aligning with banking needs for revenue-driven predictions.
 - Visualisation:
