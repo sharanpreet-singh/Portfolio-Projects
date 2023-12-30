@@ -1,0 +1,787 @@
+---
+title: "To Analyse and Predict Average Gasoline Prices"
+author: "Sharanpreet Singh and Team"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Introduction
+
+Gasoline prices hold significant sway over the economy, impacting it beyond just daily commuting. As a crucial energy source, fluctuations in prices create ripple effects across the entire economic spectrum. When prices surge, consumers bear the immediate brunt, cutting into budgets and diminishing disposable income for other necessities. Analyzing and predicting gasoline prices proves vital for economic planning, curbing inflation, influencing consumer behavior, and even shaping international trade, notably for nations reliant on oil and petroleum imports.
+
+### 1.1 Objective of the Report
+
+The project centers on a dataset featuring the Average Gasoline Price across major U.S. cities. The aim is to analyze this time series data, discern patterns in gasoline price variations, and identify a fitting model for forecasting prices over the upcoming five years.
+
+### 1.2 Data in Question
+
+The dataset originates from the Federal Economic Reserve Data (FRED, 2023) derived from the U.S. Bureau of Labor Statistics. The prices, denoted in U.S. Dollars, span from April 2013 to April 2023, recorded monthly.
+
+## 2. Method
+
+### 2.1 Data Wrangling
+
+Let us begin with by importing the basic packages as they will help us along our journey of solving the problem.
+
+```{r message=FALSE, warning=FALSE}
+#Importing necesasry libraries 
+library(TSA)
+library(fUnitRoots) #For Performing Dickey Fuller Unit Root Test
+library(forecast)
+library(lmtest) #For Linear Regression Modelling
+library(tseries)
+library(ggplot2)
+```
+
+We can now proceed towards importing our data-set into the working environment.
+
+```{r}
+#Importing the dataset
+data <- read.csv("Gasoline_Prices.csv")
+```
+
+Our data-set has been imported into the variable `data`. We can check by the following if the data has been imported and loaded correctly.
+
+```{r}
+#Checking the class of the data
+class(data)
+
+#Obtaining sample of the data
+head(data,3)
+```
+
+From the above output, we can infer that our data has been casted as a data-frame and the sample shows that it has been imported correctly.
+
+For the ease of understanding, we can change the name of the values column to 'Avg Gasoline Price'.
+
+```{r}
+#Changing name of the variable 
+names(data)[2] <- 'Avg Gasoline Price'
+
+#Confirming the name change
+colnames(data)
+```
+
+The above output confirms that the name of the second column has now been changed appropriately.
+
+A crucial step of data pre-processing is checking for missing values, as any presence of them might result in, inaccurate predictions.
+
+```{r}
+#Checking for missing values 
+sum(is.na(data))
+```
+
+The output confirms that there are no missing values in the entirety of our data-set. We can now proceed towards gaining insights from the data.
+
+### 2.2 Descriptive Analytics and Exploratory Data Analysis
+
+Let us obtain an overall statistical picture of our data-set.
+
+```{r}
+#Calculating summary statistics
+summary(data$`Avg Gasoline Price`)
+```
+
+The minimum average gasoline price was \$1.833, while the maximum was \$5.149. The mean value however remains much closer to the lower value of the prices.
+
+```{r}
+#Checking the spread of the data
+sd(data$`Avg Gasoline Price`)
+```
+
+Our data does not seem to have a high variance as the standard deviation is low, meaning the values might be tightly packed together.
+
+```{r}
+#Plotting a histogram 
+ggplot(data, aes(x=`Avg Gasoline Price`)) + geom_histogram(fill='maroon', color='black', bins=10) + labs(x='Average Gasoline Prices', y='Frequency') + ggtitle("Plot 1. Histogram of Average Gasoline Prices") + theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+From Plot 1. we can infer that our data is left-skewed with the tail extending towards the right (subject to number of bins considered). Additionally, we can see an increase near 3.5 suggesting that the our curve would be a double nodal.
+
+We can check for possible outliers as well.
+
+```{r}
+#Checking for outliers 
+ggplot(data, aes(x=`Avg Gasoline Price`)) + geom_boxplot(fill='maroon', color='black')  + ggtitle("Plot 2. BoxPlot of Average Gasoline Prices") + theme(plot.title = element_text(hjust = 0.5)) +labs(y='Values')
+```
+
+From Plot 2. we can cite that the maximum value, we earlier obtained is in-fact an outlier. However, since boxplot is one of the various ways of identifying influential points and this may not be the case when other methods are used, therefore, we do not remove it as it is an actual average gasoline price however uncertain it has occurred in the past.
+
+### 2.3 Defining the Time Series
+
+We will begin by converting our data into a time-series object for carrying out the analysis.
+
+```{r}
+#Converting to a time-series object
+ts_data <- ts(data$`Avg Gasoline Price`, start = as.yearmon("2013-04"), end = as.yearmon("2023-04"), frequency = 12)
+
+#Verifying the change
+class(ts_data)
+```
+
+Our data has been converted into a time series object denoted by 'ts_data' as verified by the output of `class(ts_data`. Additionally, frequency has been kept to 12 considering this is a monthly data collected for a 10 years.
+
+We can also plot our time-series curve as shown below:
+
+```{r}
+#Plotting the time-series curve
+plot(ts_data, ylab = 'Average Price of Gasoline', xlab = 'Month/Year', type = 'o', main = "Plot 3. Time Series Plot of US City Average Price of Gasoline")
+```
+
+This analysis of the Average Gasoline Price over time indicates several key observations. The price fluctuated, reaching a low in 2016, rising until 2019, dropping again around the onset of COVID-19, and then hitting an all-time high during the pandemic. The increase during this period aligns with reduced demand and limited market suppliers.
+
+Upon examining the time-series plot, several characteristics stand out:
+
+1.  Trend: No clear upward or downward trend is evident. The prices at the beginning and end of the period are quite similar.
+
+2.  Seasonality: With 121 months of data, clear seasonality isn't apparent. Further analysis via ACF and PACF plots might reveal more insights.
+
+3.  Change of Variance: Variance shifts noticeably across the dataset, evident from the differences between measurements, especially around early 2015 and after 2022. This hints at a non-stationary time-series, which might require transformations for handling.
+
+4.  Autocorrelation Structure: Observations show consecutive points and fluctuations, suggesting potential Moving Average (MA) and Auto Regressive (AR) behavior. Determining the exact ARMA nature requires examination using ACF, PACF, and EACF plots.
+
+5.  Intervention: No abrupt increases or decreases are apparent in the dataset, suggesting no notable intervention points.
+
+Further exploration through advanced time-series analysis methods can clarify the AR and MA behavior, providing deeper insights into the data's underlying structure. Let us also understand the correlation present in the data-set.
+
+```{r}
+#Scatterplot of the data-set
+plot(y = data$`Avg Gasoline Price`, x = zlag(data$`Avg Gasoline Price`), ylab = 'Average Price of Gasoline', xlab = 'Previous Month Average Price of Gasoline', main = "Plot 4. Scatter plot of Average Price of Gasoline\n in Consequtive Months")
+```
+
+From Plot 4., we observe a high correlation between Average Price of Gasoline of succeeding years which is an even stronger evidence of auto-regressive behavior.
+
+Before we proceed toward the model specification stage, let us check the strength of the autocorrelation as we have seen from the plot above that there are certain consecutive points.
+
+```{r}
+# Checking for auto-coorealtion 
+y <- ts_data
+x <- zlag(ts_data) #Lagged verion
+index <- 2:length(x) 
+
+# Checking correaltion
+cor(y[index], x[index])
+```
+
+From the above output, we can cite that there is a quite high correlation between the considered current month's value to the previous month's value.
+
+### 2.4 Model Understanding
+
+For presenting the model that would be best able to predict the future values of the given data-set, we need to look at various plots such as Auto Correlation Function (ACF) Plot, Partial Auto Correlation Function (PACF) Plot. The ACF and PACF plots are useful when identifying pure MA(q) or AR(p) models respectively, however, for ARIMA models we identify them using the Extended Auto Correlation Function (EACF) plots.
+
+We will now proceed towards identifying the various models that would be best representative of this time-series. But before we move towards model identification like any time-series modelling technique, we need to make sure our series is stationary.
+
+```{r}
+# Performing ACF and PACF Plot of the time-series 
+
+# We will create a function to use ACF and PACF as we might require it for further use as well. 
+plot_acf_pacf <- function(timeseries, plot_num){
+  par(mar=c(5,4,5,5))
+  acf(timeseries, lag.max = 36, main=paste("Plot", plot_num, ". ACF Plot"))
+  plot_num = plot_num + 1 # Keeps incrementing the plot number
+  pacf(timeseries, lag.max = 36, main=paste("Plot",plot_num, ". PACF Plot"))
+}
+
+# Obtaining the required plots 
+plot_acf_pacf(as.vector(data$`Avg Gasoline Price`),5)
+```
+
+The slowly decaying pattern in the ACF Plot and a highly significant lag 1 in the PACF plot tells us that the series is non-stationary. As there are two significant lags in the PACF plot, we can take the value of 'p' to be 2.
+
+### 2.4 Model Building Strategy
+
+#### 2.4.1 Trend Models
+
+##### 2.4.1.1 Linear Model
+
+From the time series graph in Plot 3 above, we can cite that something as simple as a linear model or a quadratic model will not be able to capture the movement as firstly these are trend models and ideally, there is no trend or a specific patter in our data. However, we can try implementing a seasonal model to check how it fits onto our data.
+
+```{r}
+#Fitting a seasonal model 
+data_seasonal <- season(ts_data)
+model.seasonal.data <- lm(ts_data~data_seasonal-1) #-1 to remove the intercept term
+
+#Producing the summary of the model
+summary(model.seasonal.data)
+```
+
+From the above output, we can infer that all our coefficients are statistically significant as their p-values are less than the significance level of $\alpha$ = 0.05. The model helps explains approximately 94.74%. We can have a look at the how the models fits our data.
+
+```{r}
+#Visualising the model 
+plot(ts(fitted(model.seasonal.data)), ylim = c(min(c(fitted(model.seasonal.data), as.vector(ts_data))), max(c(fitted(model.seasonal.data),as.vector(ts_data)))), ylab='Avg Gasoline Price', main = "Plot 7. Fitting Seasonal Model", type="l",lty= 2 ,col="red", xlab ='Months')
+lines(as.vector(ts_data),type="o")
+```
+
+From Plot 7. we can infer that our seasonal model is unable to capture the change in variance as well as the fluctuations that happen in the original data. Therefore, this model is not worth deployment and hence can be rejected.
+
+Similarly, even if we were to fit a Harmonic, Linear, or a Quadratic models will be unable to develop a proper fit to the data as it our original data is non-stationary, and these models cannot account for non-stationary movement. Even if the model's non-stationary nature was tackled, these trend models will not be adequate as for instance, a linear model considers a constant slope over time, a quadratic model assumes fixed curvature over time and a harmonic model requires repeating patters of fixed frequencies. However, additive models may suffice.
+
+##### 2.4.1.2 Harmonic + Quadratic Model
+
+Let us check for an additive model below:
+
+```{r}
+# Fitting a harmonic model with a quadratic through the data-set
+har. <- harmonic(ts_data,1) 
+t <- time(ts_data) #Assigning the linear component
+t2 <- t**2 #Assigning the quadratic component
+model.har.quad.data <- lm(ts_data~har. + t + t2)
+
+#Obtaining summary of the model 
+summary(model.har.quad.data)
+```
+
+From the above output, we can infer that all the coefficients except the Sine Component are statistically significant with p-value less than 0.05. The overall model from the Adjusted R-Squared explains about 65.88% of the total variance --that is it slightly under-fits the data. Let us try and visualize to check how our model fits the data.
+
+We can create a function for creating the plots.
+
+```{r}
+#Function for creating plots
+plotting_models <- function(model, ts_data, plot_num){
+  fitted_values <- ts(fitted(model))
+  
+  # Setting the limits for the y-axis
+   ylim <- c(min(c(fitted_values, as.vector(ts_data))),
+            max(c(fitted_values, as.vector(ts_data))))
+   
+   # Plot fitted values
+  plot(fitted_values, ylim = ylim, ylab = 'Avg Gasoline Price',
+       main = paste("Plot", plot_num,".","Fit Model"), type = "l",
+       lty = 2, col = "red", xlab = 'Months')
+  
+  lines(as.vector(ts_data),type="o")
+  
+}
+
+#Calling the function 
+plotting_models(model.har.quad.data, ts_data,8)
+```
+
+As expected, we see our model fitting 'almost' well to the our data-set, however, it is unable to account for the changing variance in the data-set and as represented by the R-Squared value does not fit the data well. Therefore, we can reject this model as well.
+
+#### 2.4.2 Model Specification for SARIMA Models
+
+We have already cited that our data has a seasonal component to it, and ideally SARIMA models help to better represent the fit in such models. Therefore, we will develop SARIMA models as a plausible solution to our question. We will begin with parameter estimation for the ARIMA Models (p,d,q) and also the seasonal parameters (P,D,Q).
+
+##### 2.4.2.1 Parameter Estimation
+
+Differencing helps to stabilize the mean of the time series, and therefore effectively removing the trend and seasonality in the data.
+
+We will estimate the parameters based on the residual approach, therefore, we will begin with a simple model SARIMA(0,0,0)x(0,1,0)~12~ .
+
+```{r}
+#Implementing the model
+m1.data = Arima(ts_data, order = c(0,0,0), seasonal = list(order = c(0,1,0), period = 12))
+#Calculating residuals
+res.m1 = residuals(m1.data)
+#Plotting
+plot(res.m1, xlab = 'Time', ylab = 'Residuals', main = "Plot 9.Time Series Plot with First Seasonal Differencing")
+plot_acf_pacf(res.m1,10)
+```
+
+From Plot 9. we observe at the start of the curve a flat-line that is essentially lost data due to the seasonal differencing; the more we perform it, the more information we lose. Seasonality still remains.
+
+To get rid of the ordinary trend seen in the residuals, we will fit the SARIMA(0,1,0)x(0,1,0)~12~ model. The following plots show the corresponding time series, ACF, and PACF plots.
+
+```{r}
+#Removing the ordinary part
+m2.data = Arima(ts_data, order = c(0,1,0), seasonal = list(order = c(0,1,0), period = 12))
+res.m2 = residuals(m2.data)
+
+#Plotting
+plot(res.m2, xlab = 'Time', ylab = 'Residuals', main = "Plot 12.Time Series of Removed Ordinary Trend")
+plot_acf_pacf(res.m2,13)
+```
+
+From Plot 12. there is no evidence of an ordinary trend left in the latest residuals. The residuals of the model SARIMA(0,1,0)x(0,1,0)~12~ now includes SARMA and ARMA components.
+
+For the orders of SARMA component, we will consider the lags at 1s, 2s, and 3s i.e. at month 12, 24, and 36. Therefore from Plot 13. ACF Plot, we observe seasonal lags 1 and 2 are significant while 3s is insignificant and in Plot 14. we observe a decreasing pattern at the seasonal lags which indicates the existence of an SMA(1) component. Therefore, we consider adding Q=1 and Q = 2 to the model.
+
+Now, we will fit SARIMA(0,1,0)x(0,1,1)~12~ and SARIMA(0,1,0)x(0,1,2)~12~ models and try to see if we get rid of the effect of the seasonal component on the residuals.
+
+```{r}
+# With Q = 1; SARIMA(0,1,0)x(0,1,1)
+m3.data = Arima(ts_data, order = c(0,1,0), seasonal = list(order = c(0,1,1), period = 12))
+res.m3 = residuals(m3.data)
+
+#Plotting 
+plot(res.m3, xlab = 'Time', ylab = 'Residuals', main = "Plot 15. Time series plot of the residuals with Q=1")
+plot_acf_pacf(res.m3,16)
+```
+
+From Plot 16, we can observe that the second seasonal lag is still statistically significant, and therefore to counter that, we will perform the next model with Q = 2.
+
+```{r}
+# With Q = 2; SARIMA(0,1,0)x(0,1,2)
+m4.data = Arima(ts_data, order = c(0,1,0), seasonal = list(order = c(0,1,2), period = 12))
+res.m4 = residuals(m4.data)
+
+#Plotting 
+plot(res.m4, xlab = 'Time', ylab = 'Residuals', main = "Plot 18. Time series plot of the residuals with Q=2")
+plot_acf_pacf(res.m4,19)
+```
+
+We are able to get rid of the effect of the seasonal component on the residuals as we see that none of the correlations are significant at lags 1, 2 and 3 in both ACF and PACF plots. Thus, we will use the resulting ACF and PACF plots to specify the orders of ARMA component.
+
+However, one thing to observe in the ACF and PACF plot above is that in-terms of the normal lags, there is a significant lag at 1; suggesting an ARMA(1,1) model for the residuals.
+
+Therefore, we can fit a SARIMA(0,1,1)x(0,1,2)~12~ model to begin with and then proceed further.
+
+```{r}
+#Fitting SARIMA(0,1,1)x(0,1,2)
+m5.data = Arima(ts_data, order = c(0,1,1), seasonal = list(order = c(0,1,2), period = 12))
+res.m5 = residuals(m5.data)
+
+#Plotting 
+plot(res.m5, xlab = 'Time', ylab = 'Residuals', main = "Plot 21. Time series plot of the residuals")
+plot_acf_pacf(res.m5,22)
+```
+
+From Plots 22 and 23, we observe that the significant lag at 1 in both the previous ACF and PACF plots have now been removed. However, we will try to better our time series curve by using the following model.
+
+```{r}
+#Using SARIMA(1,1,1)x(0,1,2)
+m6.data = Arima(ts_data, order = c(1,1,1), seasonal = list(order = c(0,1,2), period = 12))
+res.m6 = residuals(m6.data)
+
+#Plotting 
+plot(res.m6, xlab = 'Time', ylab = 'Residuals', main = "Plot 24. Time series plot of the residuals")
+plot_acf_pacf(res.m6,25)
+```
+
+From Plots 24, 25, and 26; we can infer that although not much has changed the strength of the lags has decreased drastically, additionally, we also observe a decrease in the variance at the end of the time series curve.
+
+Therefore, our model parameters have now been defined as : $p = 1, d = 1, q = 1, P = 0, D = 1, Q = 2.$
+
+##### 2.4.2.2 Possible Models
+
+##### 2.4.2.2.1 EACF Plots
+
+With the basic parameters estimated and our time-series curve almost resembling a random walk, we can proceed towards finding other models that would help explain our data.
+
+For doing so, we will take the help of EACF Plots, and develop further models from its output. Now since, `m6.data` was the final model developed above, we will not take this as the input, as ideally, EACF plot should also return a model with the same parameters, therefore, we consider the `m5.data` model.
+
+```{r}
+#EACF Plot
+eacf(res.m5)
+```
+
+From the above Matrix of AR and MA orders, we locate the top-left 'o' and find its immediate neighbors for selecting values of 'p' and 'q'. On the basis of the above output, we have the models:
+
+1.  SARIMA(0,1,0) x (0,1,2)~12~
+
+2.  SARIMA(0,1,1) x (0,1,2)~12~
+
+3.  SARIMA(0,1,2) x (0,1,2)~12~
+
+4.  SARIMA(1,1,1) x (0,1,2)~12~ -- ***Our Model 6 developed earlier.***
+
+5.  SARIMA(1,1,2) x (0,1,2)~12~
+
+##### 2.4.2.2.2 BIC Scores
+
+Another method of developing more models is to use BIC scoring which effectively makes subsets of the ARMA models, and it is demonstrated below:
+
+```{r warning=FALSE}
+#BIC 
+par(mfrow=c(1,1))
+bic_table = armasubsets(y=res.m5,nar=5,nma=5,y.name='p',ar.method='ols')
+plot(bic_table)
+```
+
+From the above BIC plot, we essentially need to select the model with the lowest BIC value. We do observe simple models being presented by the BIC matrix, and hence, we can consider the following models:
+
+6.  SARIMA(3,1,0) x (0,1,2)~12~
+
+We have only selected one model as the reason being it is the best model out of all the other models in that BIC plot, and also it is different to the already selected models.
+
+Hence, our final set of models:
+
+1.  **SARIMA(0,1,0) x (0,1,2)~12~**
+
+2.  **SARIMA(0,1,1) x (0,1,2)~12~**
+
+3.  **SARIMA(0,1,2) x (0,1,2)~12~**
+
+4.  **SARIMA(1,1,1) x (0,1,2)~12~**
+
+5.  **SARIMA(1,1,2) x (0,1,2)~12~**
+
+6.  **SARIMA(3,1,0) x (0,1,2)~12~**
+
+#### 2.4.3 Model Fitting
+
+We will now proceed towards model fitting as now we have ensured that our time series is stationary and additionally we have specified orders for our various models.
+
+For the purpose of Model Fitting, we will consider two methods, namely, **Least Square Estimation** which in time-series nomenclature is termed as **Conditional Sum of Squares Function (CSS),** and the second, **Maximum Likelihood (ML).** We will now proceed towards estimating our parameters via model fitting.
+
+ML is based on the assumption of normality, although we have not checked the distribution of the residuals to see if they are normal, we will perform both CSS and ML, as CSS does not have the normality assumption. However, we will later look at the residual distribution as well.
+
+For the significant test (z-test) below, we consider the significance level as 0.05.
+
+Before, we proceed we can initialize a function that would make it easier to perform residual analysis (Module 8, 2023).
+
+```{r}
+residual.analysis <- function(model, std = TRUE, start = 2, class = c("ARIMA", "GARCH", "ARMA-GARCH", "fGARCH")[1]) {
+  
+  if (class == "ARIMA") {
+    if (std == TRUE) {
+      res.model <- rstandard(model)
+    } else {
+      res.model <- residuals(model)
+    }
+  } else if (class == "GARCH") {
+    res.model <- model$residuals[start:model$n.used]
+  } else if (class == "ARMA-GARCH") {
+    res.model <- model@fit$residuals
+  } else if (class == "fGARCH") {
+    res.model <- model@residuals
+  } else {
+    stop("The argument 'class' must be either 'ARIMA' or 'GARCH'")
+  }
+  
+  par(mfrow = c(3, 2))
+  
+  plot(res.model, type = 'o', ylab = 'Standardised residuals', main = "Time series plot of standardised residuals")
+  abline(h = 0)
+  
+  hist(res.model, main = "Histogram of standardised residuals")
+  
+  qqnorm(res.model, main = "QQ plot of standardised residuals")
+  qqline(res.model, col = 2)
+  
+  acf(res.model, main = "ACF of standardised residuals")
+  
+  print(shapiro.test(res.model))
+  
+  k <- 0
+  LBQPlot(res.model, lag.max = 30, StartLag = k + 1, k = 0, SquaredQ = FALSE)
+  
+  par(mfrow = c(1, 1))
+}
+
+LBQPlot <- function(res, lag.max = 30, StartLag = k + 1, k = 0, SquaredQ = FALSE) {
+  stopifnot(k >= 0, lag.max - StartLag > 0, length(res) > lag.max)
+  
+  lag_values <- StartLag:lag.max
+  lb_test <- sapply(lag_values, function(lag) {
+    box_result <- Box.test(res, lag = lag, type = "Ljung-Box")
+    p_value <- box_result$p.value
+    return(p_value)
+  })
+  
+  plot(lag_values, lb_test, xlab = "Lag", ylab = "p-value", ylim = c(0, 1),
+       main = "Ljung-Box Test")
+  abline(h = 0.05, col = "red", lty = 2)
+}
+```
+
+#### 1. **SARIMA(0,1,0) x (0,1,2)~12~**
+
+```{r}
+#Developing the model 
+m6_010_data<-Arima(ts_data, order=c(0,1,0),seasonal=list(order=c(0,1,2),period=12),method="ML")
+coeftest(m6_010_data)
+residual.analysis(model=m6_010_data)
+```
+
+From the above outputs:
+
+Firstly, since the p-value is less than 0.05 (significance level), therefore, we can cite that the model is not normally distributed as the Null Hypothesis of the Shapiro-Wilk Normality Test is Residuals are normally distributed.
+
+The `sma2` coefficient is statistically insignificant --that is, its presence or not, it does not make a difference in the overall functioning of the model, and we have only one significant lag via the ACF plot and the Ljung Box Test tell us that it might be important as there are many significant test results.
+
+Since our data is not normal, let us try via CSS as well.
+
+```{r}
+#Developing the model 
+m6_010_dataCSS<-Arima(ts_data, order=c(0,1,0),seasonal=list(order=c(0,1,2),period=12),method="CSS")
+coeftest(m6_010_dataCSS)
+residual.analysis(model=m6_010_dataCSS)
+```
+
+Although, the amount of normality has increased due to an increase in the p-value, our residuals are still not normal, and not much has changed in-terms of lags as well or their importance via the Ljung-Box Test.
+
+Let us proceed towards the second model
+
+#### 2. **SARIMA(0,1,1) x (0,1,2)~12~**
+
+```{r}
+m6_011_data<-Arima(ts_data, order=c(0,1,1),seasonal=list(order=c(0,1,2),period=12),method="ML")
+coeftest(m6_011_data)
+residual.analysis(model=m6_011_data)
+```
+
+Our residuals are still not normally distributed as p-value is less than 0.05. Additionally, only the `ma1` coefficient is statistically significant, where as both the seasonal moving average coefficients are not. From the ACF plot, we observe quite a number of significant lags and they do have an impact as their importance is verified by the highly significant test results from Ljung-Box Test.
+
+We can try via the CSS method as our residuals are not normally distributed.
+
+```{r}
+#CSS Method
+m6_011_dataCSS<-Arima(ts_data, order=c(0,1,1),seasonal=list(order=c(0,1,2),period=12),method="CSS")
+coeftest(m6_011_dataCSS)
+residual.analysis(model=m6_011_dataCSS)
+```
+
+We observe similar patterns and statistics after the 'CSS' methodology as well. Clearly, this is not the best model for our deployment purposes.
+
+#### 3. **SARIMA(0,1,2) x (0,1,2)~12~**
+
+```{r}
+#ML Method
+m6_012_data<-Arima(ts_data, order=c(0,1,2),seasonal=list(order=c(0,1,2),period=12),method="ML")
+coeftest(m6_012_data)
+residual.analysis(model=m6_012_data)
+```
+
+Quite interestingly, we again obtain an insignificant `sma1` and `sma2` coefficients, and only the `ma1` and `ma2` coefficients are statistically significant. Our data is not normally distributed as verified by the p-value being less than 0.05 leading to a rejection of the Null Hypothesis of the hypothesis test.
+
+There are comparatively less number of significant lags in-fact only 1 as compared to the second model we had tested. Furthermore, this one significant lag is not important as verified by the Ljung-Box Test as there are no significant test results.
+
+Let us check via the CSS methodology as well.
+
+```{r}
+#CSS Method
+m6_012_dataCSS<-Arima(ts_data, order=c(0,1,2),seasonal=list(order=c(0,1,2),period=12),method="CSS")
+coeftest(m6_012_dataCSS)
+residual.analysis(model=m6_012_dataCSS)
+```
+
+The CSS methodology provides a statistically significant `sma1` but does not manage to provide normally distributed residuals. Since there is a difference of opinions between both the methods, let us try a CSS-ML methodology as well.
+
+```{r}
+#CSS-ML Methodology
+m6_012_dataCSSML<-Arima(ts_data, order=c(0,1,2),seasonal=list(order=c(0,1,2),period=12),method="CSS-ML")
+coeftest(m6_012_dataCSSML)
+residual.analysis(model=m6_012_dataCSSML)
+```
+
+Again, since CSS-ML is mostly just the ML algorithm working with a initial push from the CSS, the end results end up resembling the output of the ML methodology.
+
+Now, we can proceed towards the next model.
+
+#### 4. **SARIMA(1,1,1) x (0,1,2)~12~**
+
+Let us begin with the ML methodology, and then we can proceed further.
+
+```{r}
+#ML Method
+m6_111_data<-Arima(ts_data, order=c(1,1,1),seasonal=list(order=c(0,1,2),period=12),method="ML")
+coeftest(m6_111_data)
+residual.analysis(model=m6_111_data)
+```
+
+From the above outputs, we can infer that 3 out of the four coefficients are statistically significant, with `sma2` being insignificant like in the rest of the models as well so-far. Our p-value of the Shapiro-Wilk Normality Test is less than 0.05 indicating non-normal residuals, and there are no statistically significant lags.
+
+Let us check via the CSS methodology as well, considering non-normal residuals.
+
+```{r}
+#CSS Method
+m6_111_dataCSS<-Arima(ts_data, order=c(1,1,1),seasonal=list(order=c(0,1,2),period=12),method="CSS")
+coeftest(m6_111_dataCSS)
+residual.analysis(model=m6_111_dataCSS)
+```
+
+We observe similar results as that from the ML method, and hence there is nothing more to be explored from this model, and we can proceed further to the next model.
+
+#### **5. SARIMA(1,1,2) x (0,1,2)~12~**
+
+Trying residual analysis via the ML method first.
+
+```{r}
+#ML Method 
+m6_112_data<-Arima(ts_data, order=c(1,1,2),seasonal=list(order=c(0,1,2),period=12),method="ML")
+coeftest(m6_112_data)
+residual.analysis(model=m6_112_data)
+```
+
+From the above outputs, we infer that 3 out of the 5 coefficients are statistically significant. The coefficients `ma2` and `sma2` can be removed from the model without making much difference. Our residuals are not normally distributed. Furthermore, there are no statistically significant lags.
+
+Let us also cross-check via the CSS Methodology.
+
+```{r}
+#CSS Method
+m6_112_dataCSS<-Arima(ts_data, order=c(1,1,2),seasonal=list(order=c(0,1,2),period=12),method="CSS")
+coeftest(m6_112_dataCSS)
+residual.analysis(model=m6_112_dataCSS)
+```
+
+We observe a difference in the results obtained via the CSS methodology as the `ar1` coefficient is no longer statistically significant, whereas all the other statistics remain the same. We can have deeper insight of this using the CSS-ML model.
+
+```{r}
+#CSS-ML Model
+m6_112_dataCSSML<-Arima(ts_data, order=c(1,1,2),seasonal=list(order=c(0,1,2),period=12),method="CSS-ML")
+coeftest(m6_112_dataCSSML)
+residual.analysis(model=m6_112_dataCSSML)
+```
+
+The results confer with those received via the ML methodology.
+
+#### **6. SARIMA(3,1,0) x (0,1,2)~12~**
+
+Implementing the ML methodology first.
+
+```{r}
+#ML-Methodology 
+m6_310_data<-Arima(ts_data, order=c(3,1,0),seasonal=list(order=c(0,1,2),period=12),method="ML")
+coeftest(m6_310_data)
+residual.analysis(model=m6_310_data)
+```
+
+Our last model, helps produce more statistically significant coefficients than any other model. However, here as well the `sma2` is not statistically significant and hence can be left out of the model. Our data is not-normal as is evident via the p-value being less than $\alpha$ . There is one statistically significant lag but is not important as none of the points in the Ljung-Box Test are significant.
+
+We can try the residual analysis of this model via the CSS methodology as well.
+
+```{r}
+#CSS-Methodology 
+m6_310_dataCSS<-Arima(ts_data, order=c(3,1,0),seasonal=list(order=c(0,1,2),period=12),method="CSS")
+coeftest(m6_310_dataCSS)
+residual.analysis(model=m6_310_dataCSS)
+```
+
+The CSS methodology actually ends up performing worse than the ML as now the `ar3` coefficient has become statistically insignificant, and there are 2 statistically significant lags in the ACF plot which can be considered important as is evident by a few significant points in the Ljung-Box Test.
+
+Since there is a difference in opinion of both the methods, we can try using the CSS-ML method as well.
+
+```{r}
+#CSS-ML
+m6_310_dataCSSML<-Arima(ts_data, order=c(3,1,0),seasonal=list(order=c(0,1,2),period=12),method="CSS-ML")
+coeftest(m6_310_dataCSSML)
+residual.analysis(model=m6_310_dataCSSML)
+```
+
+As expected, our observations match the results obtained via the ML methodology as well.
+
+From the above fittings, we do not have a clear picture of what model we should deploy, and hence we shift our focus toward scoring metrics such AIC and BIC as shown below.
+
+#### 2.4.4 Model Evaluation
+
+We cannot deploy all the six models as that is impractical and moreover too expensive. Therefore, we need to evaluate which model is best as per the context based on certain parameters.
+
+We will begin with looking at the AIC and BIC scores.
+
+Let us develop a function to do so as it will help in easily reproducing results. For obtaining the AIC and BIC score, we will taking the help of the function (modified) `sort.score` developed by Mr. Yong Kai Wong.
+
+Do note that, we will be considering the ML models for obtaining the score for a simple reason that they are based on Maximum Likelihood estimate of the parameters. We are ideally looking for models with the lowest AIC or BIC score. Additionally, since AIC and BIC scores cannot be calculated for CSS models.
+
+```{r}
+#Function for calculating AIC and BIC Scores 
+sort.score <- function(x, score = c("bic", "aic")) 
+  {
+valid_score <- c("bic", "aic")
+if (score %in% valid_score) {
+if (score == "aic") {
+x[order(x$AIC), ] #Sorting
+} else {
+x[order(x$BIC), ] #Sorting
+}
+} else {
+warning(paste0("Invalid score argument. Valid options are: ", paste(valid_score
+, collapse = ", ")))
+return(NULL)
+}
+}
+
+#Calling the function 
+sort.score(AIC(m6_010_data,m6_011_data,m6_012_data,m6_111_data,m6_112_data,m6_310_data), score ='aic')
+sort.score(BIC(m6_010_data,m6_011_data,m6_012_data,m6_111_data,m6_112_data,m6_310_data), score ='bic')
+```
+
+From the above table outputs, we can cite that **SARIMA(1,1,1)x(0,1,2)~12~** is the best model for deployment purposes. However, let us also compare errors of each model and then conclude constructively.
+
+In the following, we will considering the CSS models as our residuals in the models were not normally distributed.
+
+```{r}
+#Calculating Errors
+#Because no normality
+Sm6_010_data <- accuracy(m6_010_dataCSS)[1:7]
+Sm6_011_data <- accuracy(m6_011_dataCSS)[1:7]
+Sm6_012_data <- accuracy(m6_012_dataCSS)[1:7]
+Sm6_111_data <- accuracy(m6_111_dataCSS)[1:7]
+Sm6_112_data <- accuracy(m6_112_dataCSS)[1:7]
+Sm6_310_data <- accuracy(m6_310_dataCSS)[1:7]
+
+df.Smodels <- data.frame(
+  rbind(Sm6_010_data, Sm6_011_data,Sm6_012_data,Sm6_111_data,Sm6_112_data,Sm6_310_data)
+)
+colnames(df.Smodels) <- c("ME", "RMSE", "MAE", "MPE", "MAPE", 
+                          "MASE", "ACF1")
+
+round(df.Smodels,  digits = 3)
+```
+
+From the above error matrix, we can cite that in-terms of absolute errors our existing model **SARIMA(1,1,1)x(0,1,2)~12~** produces the least amount of errors, and hence, we can conclude that this is our best model.
+
+#### 2.4.5 Diagnostic Checking/ Performance Evaluation
+
+We perform model over-fitting as a means of detecting anomalies and check the goodness of fit. The over-fit models for our best model would be **SARIMA(1,1,2) x (0,1,2) and SARIMA(2,1,1) x (0,1,2).**
+
+Therefore, performing residual analysis on the over-fit models:
+
+```{r}
+# SARIMA(1,1,2) x (0,1,2)_12
+m6_112_data = Arima(log(ts_data),order=c(1,1,2),seasonal=list(order=c(0,1,2), period=12), method = 'ML')
+coeftest(m6_112_data)
+residual.analysis(model = m6_112_data)
+
+# SARIMA(2,1,1) x (0,1,2)_12
+m6_211_data = Arima(log(ts_data),order=c(2,1,1),seasonal=list(order=c(0,1,2), period=12), method = 'ML')
+coeftest(m6_211_data)
+residual.analysis(model = m6_211_data)
+
+#AIC of the model and it's overfitting models
+AIC(m6_111_data, m6_112_data, m6_211_data)
+```
+
+In the original best model, we had `ar1`, `ma1` and `sma1` as statistically significant, and in **SARIMA(1,1,2) x (0,1,2)** the additional ma2 component is insignificant, that is its presence in the model just like sma2 is making no contribution to the predicting power. Our residuals are still not normally distributed as is evident via the p-value being less than 0.05. Similar, is the case with the second over-fit model **SARIMA(2,1,1) x (0,1,2)** --that is the additional coefficient ar2 is insignificant in the model building process.
+
+Quite interestingly, our over-fit models have almost 5 times lower AIC score than the original best model. However, since they are the results of the original model, we will proceed with **SARIMA(1,1,1)x(0,1,2)~12~** as the best model for deployment purposes. Also, it is a good trade-off as we will be avoiding an extra parameter leading to a much simpler model for understanding and deployment.
+
+#### 2.4.6 Predicting Power
+
+A model can be deemed successful or a good representation of the data if it has a really good predicting power, and therefore, we will deploy our final model **SARIMA(1,1,1)x(0,1,2)~12~** to predict the average gasoline prices for the next 10 months.
+
+We will be using 'CSS' methodology as we know our model does not have normally distributed residuals. This considers a default lower level of prediction interval as 80 and upper as 95.
+
+```{r}
+#Forecasting for the next 10 months
+m6_111_data_forcast <- Arima(ts_data,order=c(1,1,1),seasonal=list(order=c(0,1,2), period=10), method = "CSS")
+
+#Prediction 
+prediction <- forecast(m6_111_data_forcast, h = 10)
+prediction
+
+#Plotting the prediction 
+plot(prediction, xlab= 'Years', ylab= 'Average Gasoline Prices', main= "Plot 27. Next 10 Months prediction of Average Gasoline Prices")
+```
+
+From the prediction Plot 27. we can cite that in the months to come (in the context of the data-set) from May 2023 until February 2024, the average gasoline price taken average of U.S. Cities will vary from approximately 3.6 USD to 3.9 - 4.0 USD per Gallon.
+
+## 3. Results
+
+In our analysis of a dataset comprising 121 observations of average gasoline prices over time, we found no specific trend or clear seasonality. The time series displayed characteristics suggestive of ARMA behavior due to consecutive points and fluctuations, without any evident intervention points. Rather than explicit transformations like log or Box-Cox methods, we relied on differencing to stabilize the series' mean and eliminate trend and seasonality.
+
+Initially, we attempted trend models such as seasonal and harmonic + quadratic, but they didn't fit well. We then applied differencing (D=1) to address seasonality and removed the ordinary trend by setting d=1. Through ACF and PACF analysis, we established seasonal parameters as P=0 and Q=2.
+
+Determining p and q values relied on significant lags in the ACF and PACF plots, resulting in p=q=1. Using the EACF Plot, we derived a total of 6 SARIMA models. Each model underwent fitting and residual analysis. Based on BIC and AIC values, alongside absolute errors, we selected SARIMA(1,1,1) x (0,1,2)12 as the best model.
+
+Deploying this model for forecasting, we predicted average gasoline prices for the next 10 months to be approximately in the range of 3.6 USD to 3.9 - 4.0 USD per gallon.
+
+## 4. Discussion
+
+It sounds like despite none of the six selected models having all their coefficients statistically significant, there was potential for refinement by removing the insignificant components. However, even after this adjustment, the residuals from our models didn't meet the assumption of normality. Consequently, our model evaluations primarily relied on the CSS methodology.
+
+Despite imperfections, SARIMA(1,1,1) x (0,1,2)12 emerged as the best model based on its lowest AIC and BIC values, along with lower errors. While it's not flawless and might generate more errors in some cases compared to other models, the lower BIC score, which tends to penalize models more, signifies its strength relative to the alternatives. This provides a level of confidence in the model's suitability compared to the others, even though it isn't entirely perfect.
+
+## 5. Conclusion
+
+From our analysis of the Average Gasoline Prices dataset spanning 2013 to 2023, prices largely remained below USD 3 per Gallon. However, the post-pandemic period saw unprecedented spikes, marking all-time highs since 2020. We favored differencing over standard transformations as it achieved the necessary outcomes with minimal data loss. Based on our final model, we forecasted that average gasoline prices would range between 3.6 USD to 3.9 - 4.0 USD per Gallon over the next 10 months from the dataset's last recorded month.
+
+## 6. References
+
+-   U.S. Bureau of Labor Statistics. (1978, January 1). Average Price: Gasoline, All Types (Cost per Gallon/3.785 Liters) in U.S. City Average. FRED, Federal Reserve Bank of St. Louis. <https://fred.stlouisfed.org/series/APU00007471A>
