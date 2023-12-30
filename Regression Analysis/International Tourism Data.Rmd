@@ -1,0 +1,795 @@
+---
+title: "Regression Analysis on International Tourism Analysis"
+author: "Sharanpreet Singh and Team"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Introduction
+
+Global air travel significantly boosts a nation's tourism industry and indirectly influences its Gross Domestic Product (GDP). For certain countries, heavy reliance on tourism as an economic driver means that unexpected events like the COVID-19 pandemic can severely devastate their financial stability.
+
+### 1.1 Objective
+
+The project aims to deeply analyze how international tourism influences Australia's GDP and the scale of this influence. This involves studying Australia's historical international tourism patterns and pinpointing the primary factors driving this sector. By comprehensively understanding how international tourism affects Australia's GDP and its broader economic importance, this research can guide policymaking and business strategies within the Australian tourism industry.
+
+### 1.2 Our Data
+
+#### 1.2.1 Data Source and Collection Method
+
+Our data has been sourced from the World Bank (DataBank, 2023). The variables that we have selected for the analysis in question are: *GDP (in USD), International tourism (Number of Arrivals), International Tourism (Number of Departures), International tourism Expenditure (USD), and International tourism Receipts (USD).*
+
+The time-period for the analysis: 1997 to 2020.
+
+#### 1.2.2 Data Description
+
+The definitions for each variable have been provided in the image below (Sourced from DataBank, 2023):
+
+![*Image 1. Variable Definitions*](images/Screenshot%202023-06-04%20at%2010.53.53%20pm.png)
+
+#### 1.2.3 Identification of Regressor Variables
+
+This report delves into assessing how international tourism impacts Australia's GDP. The chosen dataset focuses on Australia's GDP measured in current US dollars, serving as the response variable. The regressor variables encompass various international tourism factors detailed in the previous section.
+
+-   International tourism, number of arrivals
+-   International tourism, number of departures
+-   International tourism, expenditures (current US\$)
+-   International tourism, receipts (current US\$)
+
+#### **1.2.4. Relationship between variables as per context**
+
+We anticipate that the influx of arrivals will positively impact Australia's GDP, as it should align with increased spending within the country. Conversely, we expect departures to have a negative effect on Australia's GDP, signifying a slowdown or cessation in tourist spending.
+
+Likewise, we predict a positive correlation between tourism receipts and Australia's GDP, reflecting a beneficial relationship. Conversely, we anticipate a negative correlation between expenditures on tourism and Australia's GDP, indicating a potential adverse impact.
+
+## 2. Methodology
+
+To assess the model's effectiveness, we'll split the dataset into training and testing sets using a 70:30 ratio. Employing different regression models, we'll evaluate and select the best-fit model through diagnostic techniques. Once identified, we'll proceed to forecast the GDP for the upcoming 5 years based on this chosen model.
+
+**Please note:** *For all the model building processes, the original data-set has been considered without the million conversion.*
+
+### 2.1 Loading Required Libraries and Functions
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#Loading the required libraries to perform the Regression analysis
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(GGally)
+library(car)
+library(readxl)
+library(rockchalk)
+library(caTools)
+library(MLmetrics)
+library(leaps)
+library(DAAG)
+library(kableExtra)
+library(olsrr)
+library(forecast)
+
+#Setting seed for reproducable results
+set.seed(111)
+```
+
+We will create another function for calculating the **Mean Absolute Scaled Error**; a measure for the accuracy of the predictions made (Week 12, 2023).
+
+```{r}
+# Loading the custom function 
+# Mean absolute scaled error
+MASE = function(observed , fitted ){
+# observed: Observed series on the forecast period
+# fitted: Forecast values by your model
+Y.t = observed
+n = length(fitted)
+e.t = Y.t - fitted
+sum = 0
+for (i in 2:n){
+sum = sum + abs(Y.t[i] - Y.t[i-1] )
+}
+q.t = e.t / (sum/(n-1))
+MASE = data.frame( MASE = mean(abs(q.t)))
+return(list(MASE = MASE))
+}
+```
+
+### 2.2 Data Pre-Processing
+
+We will begin by importing our data-set into our working environment.
+
+```{r}
+# Loading the dataset
+world_data <- read_excel("P_Data_Extract_From_World_Development_Indicators.xlsx", sheet = "Sheet1")
+
+# Renaming the column in the dataset for better understanding
+names(world_data) <- c('Year','GDP', 'Tourism_arrival', 'Tourism_departure', 'Tourism_expenditure', 'Tourism_receipt')
+
+# Rechecking the column name
+colnames(world_data)
+```
+
+Our data has been imported into the variable `world_data` as a data-frame. For the ease of understanding, the columns have been renamed using the `names` function.
+
+We can have a look at the sample of the data-set from below:
+
+```{r}
+#Obtaining a sample from the data-set 
+head(world_data,3)
+```
+
+From the above output, we can infer that our variables have been appropriately renamed, however, the `Year` variable is representing the same information twice. Let us look into the structure of the data-set to understand the issue.
+
+```{r}
+# Checking the structure of the dataset
+str(world_data)
+```
+
+The `Year` variable has been imported as a character variable. For removing the contents in the square brackets, we will subset the contents of the variable and cast it into a numeric.
+
+```{r}
+# Converting Year column to yyyy format and to numeric type
+world_data$Year <- substr(world_data$Year, 1, 4)
+world_data$Year <- as.numeric(world_data$Year)
+```
+
+Let us know proceed towards inspecting for missing values in our data-set.
+
+```{r}
+# Checking missing values
+colSums(is.na(world_data))
+```
+
+From the above output, with respect to each variable, we can cite that there are no missing values in the dataset.
+
+Before, we proceed towards descriptive statistics let us convert the domain values of the measurable variables into millions for ease of readability.
+
+```{r}
+#Converting to millions 
+world_data_millions<- world_data[, -1] / 1000000
+```
+
+Now, we proceed with the detailed descriptive statistics of all the variables in the dataset - response as well as regressor variables.
+
+We start by checking the summary of the dataset.
+
+```{r}
+#Obtaining the summary statistics
+summary(world_data_millions)
+```
+
+-   [**Year**]{.underline}: The dataset includes observations from 1997 to 2020. The minimum value is 1997, and the maximum value is 2020.
+-   [**GDP**]{.underline}: The variable "GDP" represents Gross Domestic Product. The minimum GDP value in the dataset is 379,358 million, and the maximum is 1,576,380 million. The mean GDP is approximately 956,172 million, more or less same as the median, suggesting a relatively symmetrical distribution.
+-   [**Arrivals**]{.underline}: This variable represents the number of tourist arrivals. The minimum number of arrivals is 1.828 million, and the maximum is 9.466 million. The mean number of tourist arrivals is approximately 5.89 million, again not too far from the median of 5.56 million, indicating a relatively balanced distribution.
+-   [**Departures**]{.underline}: This variable represents the number of tourist departures. The minimum number of departures is 2.832 million, and the maximum is 11.624 million. The mean number of tourist departures is approximately 6.389 million, compared to 5.635 million median, as the mean is higher than the median, it suggests a positive skew, meaning there might be a few high values that pull the mean upward.
+-   [**Tourism expenditures**]{.underline}: This variable represents the amount of money spent on tourism expenditures. The minimum value is 7,654 million, and the maximum is 42,439 million. The mean value of tourism expenditures is approximately 22,900 million.
+-   [**Tourism receipts**]{.underline}: This variable represents the amount of money received from tourism. The minimum value is 10,169 million, and the maximum is 47,953 million. The mean value of tourism receipts is approximately 26,233 million.
+
+Next, we check the spread of the variables by analyzing the variation.
+
+```{r}
+#Checking variance
+options(scipen = 999)
+apply(world_data_millions, 2, var)
+```
+
+-   **GDP**: The variance for the "GDP"{r } variable is approximately \$194023729283.393860. This indicates a considerable spread or variation in the GDP values. It suggests that the GDP values in the dataset are spread out, with the GDP in certain time periods having significantly higher or lower GDP values compared to the mean.
+-   **Tourism_arrival**: The variance for the "Tourism_arrival" variable is approximately 3.112659. This suggests that the number of tourist arrivals is relatively consistent or clustered around the mean value. There is less variation in the number of tourist arrivals across the observations.
+-   **Tourism_departure**: The variance for the "Tourism_departure" variable is approximately 9.266232. This indicates some variation in the number of tourist departures across the dataset. It suggests that there is more dispersion in the number of tourist departures compared to the "Tourism_arrival" variable.
+-   **Tourism_expenditure**: The variance for the "Tourism_expenditure" variable is approximately 159404415.563406. This indicates a significant spread or variation in the amount of money spent on tourism expenditures. Some observations may have substantially higher or lower expenditure values compared to the mean.
+-   **Tourism_receipt**: The variance for the "Tourism_receipt" variable is approximately 146862685.563406. This suggests a notable spread or variation in the amount of money received from tourism. Some observations may have significantly higher or lower receipt values compared to the mean.
+
+### 2.3 Exploratory Data Analysis
+
+We start by plotting the trend of GDP over the years. We see an increasing trend with a short downfall in 2009 as expected after the recession of 2008. There is another downward trend from 2013 to 2016 most likely because of the global trade being put on hold in the European Nations.
+
+```{r}
+# Line plot of GDP over the years
+plot(world_data$Year, world_data$GDP, type = "l", 
+     main = "Plot 1. GDP Trend Over the Years", xlab = "Year", ylab = "GDP")
+```
+
+After plotting the GDP against all the regressor variables individually, we see that there is a clear upward trend of GDP against all the regressors. It is surprising to see that trend is more or less flat for significant number of observations particularly for number of tourist arrivals.
+
+```{r}
+#Setting graphing environment 
+par(mfrow = c(2, 2))
+
+# Scatter plot of GDP and Tourism_arrival
+plot(world_data_millions$GDP, world_data_millions$Tourism_arrival, 
+     main = "Plot 2. GDP vs. Tourism Arrival", xlab = "GDP", ylab = "Tourism Arrival")
+
+# Scatter plot of GDP and Tourism_departure
+plot(world_data_millions$GDP, world_data_millions$Tourism_departure, 
+     main = "Plot 3. GDP vs. Tourism Departure", xlab = "GDP", ylab = "Tourism Departure")
+
+# Scatter plot of GDP and Tourism_expenditure
+plot(world_data_millions$GDP, world_data_millions$Tourism_expenditure, 
+     main = "Plot 4. GDP vs. Tourism Expenditure", xlab = "GDP", ylab = "Tourism Expenditure")
+
+# Scatter plot of GDP and Tourism_receipt
+plot(world_data_millions$GDP, world_data_millions$Tourism_expenditure, 
+     main = "Plot 5. GDP vs. Tourism Receipt", xlab = "GDP", ylab = "Tourism Receipt")
+```
+
+### 2.4 Train-Test Split
+
+The data is split into training and testing sets. A regression model is created using the train data and test data is used to evaluate the model performance and for prediction.
+
+```{r}
+## 70% of the sample size
+sample_size <- floor(0.7 * nrow(world_data))
+## set the seed to make your partition reproducible
+set.seed(123)
+train_set <- sample(seq_len(nrow(world_data)), size = sample_size)
+train <- world_data[train_set, ]
+test <- world_data[-train_set, ]
+```
+
+### 2.4 Data Modelling
+
+Multiple linear regression is used to model the data, to explain the variation in 'GDP' and to predict the Gross GDP using the test data. To choose the features that best explain the variation in "GDP," a variety of feature selection techniques are used. The performance and validity of the outcomes of each of the four candidate models are assessed using model adequacy tests and significance tests.
+
+#### 2.4.1 Model 1
+
+Multiple linear regression model:this model was built with GDP as the response variable and the other variables (Tourism_arrival, Tourism_departure, Tourism_expenditure, Tourism_receipt) as predictors.
+
+```{r}
+#Plotting the time series
+#Full model - model 1
+model_1 <- lm(GDP~ Tourism_arrival+ Tourism_departure+ Tourism_expenditure+ Tourism_receipt, data = train)
+
+#Obtaining summary of the fit model
+full <-summary(model_1)
+full
+```
+
+For the above implemented `lm` model, we had the following hypothesis:
+
+**H~0~: 𝛽~1~ = 𝛽~2~ ..... 𝛽~k~ = 0**
+
+**H~1~: 𝛽~1~ = 𝛽~2~ ..... 𝛽~k~ ≠** 0
+
+With significance level of $\alpha$ = 0.05
+
+From the above output, we can infer that only one variable *Tourism_expenditure* is statistically significant as it has a p-value of less than 0.05 (significance level). This simple model helps to explain 98.77% of the total variance in the data-set as shown by the Adjusted R-Squared value.
+
+**Equation of the model (**underscore have not been used in the variable names as LaTeX converts them to subscript)**:**
+
+$$
+\hat{Y} = 524038756975.20 - 103697.45*TourismArrival + 42902.46*TourismDeparture + 58.36*TourismExpenditure -23.27*TourismReceipt
+$$
+
+#### 2.4.1.1 ANOVA
+
+**H~0~** : The fit of intercept only model and the current model is same. i.e. Additional variables do not provide value taken together.
+
+**H~1~** : The fit of intercept only model is significantly less compared to our current model. i.e. Additional variables do make the model significantly better.
+
+To test the significance of the multiple linear regression model: `model_1`, ANOVA is used below:
+
+```{r}
+#Performing Anova
+a1 <-anova(model_1)
+a1
+```
+
+The ANOVA gives high F-statistic value for Tourism_arrival(699.043) and Tourism_departure(484.875). The p-value of all the variables (except Tourism_receipt) is less than 0.05 suggesting that the regression is significant at 5% level of significance. This indicates strong evidence against the null hypothesis.
+
+We will now proceed towards assumption checks.
+
+#### 2.4.1.2 Model Adequacy
+
+Performing Model Diagnostic plots for obtaining an insight into the residuals of the model.
+
+```{r}
+# Model Diagnostic Plots
+par(mfrow=c(2,2))
+plot(model_1)
+```
+
+From the above plots:
+
+1.  **Residual vs Fitted Plot**: Although there isn't a specific spread around the horizontal line, there also is no trend. A few observations do lie at a distance from the rest of the observations. The assumption of linearity will be checked later via additional graphs.
+
+2.  **Normal Q-Q Plot**: Majority of our observations lie on the normal reference line while a few seem to be deviating away. This assumption can be checked via the Shapiro Wilk Test as will be performed below.
+
+3.  **Scale-Location Plot:** We do observe an approximately even spread across the red line, however to prove the assumption of equal variance, we will use the `ncvtest`.
+
+4.  **Residuals vs Leverage Plot:** This plot helps us to identify influential points. We do not observe any observations beyond the dotted boundaries of 1 (cooks' distance), and hence we can cite that the model does not have residual outliers.
+
+Residuals have the following assumptions that have to be checked and accounted for and they are the following:
+
+1.  There is Equal Variance
+2.  The Errors are Normally Distributed
+3.  Test for Uncorrelated Errors
+4.  Test for Linearity
+
+The assumptions of `model_1` can be checked via the following:
+
+#### 1) Assumption 1 - Normality
+
+Our model may be normal, however, we can verify this by the following hypothesis test.
+
+-   **Shapiro-Wilk Test**
+
+**H~0~** : Residuals are normal.
+
+**H~1~**: Residual are not normally distributed.
+
+```{r}
+# Shapiro-Wilk Test for normality
+shapiro.test(model_1$residuals)
+```
+
+From the Shapiro-Wilk test, the p-value= 0.3321 is obtained. Since p-value \> 0.05, at 5% level of significance, **H~0~** is not rejected. Therefore, residuals are normal and the normality error assumption is not violated.
+
+#### 2) Assumption 2 - Error terms are independently distributed (No Autocorrelation)
+
+To check for correlated errors, we can plot an ACF graph.
+
+```{r}
+# Plotting the ACF
+acf(model_1$residuals, main="Plot 6. ACF of Model 1", cex.main=0.9, cex.lab=0.9, cex.sub=0.75)
+```
+
+From the above plots, we can infer that there is only significant lag i.e. at lag 0 and no significant lag at any other value. Therefore, we can cite that auto-correlation does not exist. This can be verified by the following:
+
+-   Durbin-Watson Test for auto-correlation
+
+**H~0~**: Errors are uncorrelated
+
+**H**~1~: Errors are correlated
+
+```{r}
+#DurbinWatson Test
+durbinWatsonTest(model_1)
+```
+
+From the Durbin Watson test, p-value= 0.06. Since the p-value \> 0.05 we do not have enough evidence to reject the null hypothesis. This implies that uncorrelated error assumption is not violated. Therefore, residuals are uncorrelated.
+
+#### 3) Assumption 3 - Constant Variance
+
+To check for the assumption of constant variance, we will perform the following hypothesis test.
+
+**H~0~: Errors have a constant variance.**
+
+**H~1~: Errors have a non-constant variance.**
+
+```{r}
+#NCVtest
+ncvTest(model_1)
+```
+
+Since the p-value \> 0.05 we fail to reject null hypothesis. This implies that constant error variance assumption is not violated.
+
+#### 4) Assumption 4 - Check for Linearity
+
+We check for linearity by creating a partial residual plot which essentially displays the residuals of one predictor variable against the response variable.
+
+```{r}
+#Checking for linearity 
+crPlots(model_1)
+```
+
+From the above plots, we observe a clear linear pattern between each of the variables and hence we can cite that the assumption of linearity has been met.
+
+#### [Checking the Adequacy of the model]{.underline}
+
+Variance inflation factor (VIF) values are used to check multi-collinearity of the model, and we perform the code as follows:
+
+```{r}
+#Checking for Multicollinearity
+vif(model_1)
+```
+
+Presence of VIF values greater than 5, we can cite that there is strong multi-collinearity in the system. From the above output, we can infer that since all the variables have VIF values greater than 5, therefore, our model has strong multi-collinearity.
+
+#### 2.4.2 Model 2 (Backward Elimination)
+
+As part of the second model, we will implement backward elimination to develop a model based on AIC values. Since, we have to begin with a completely filled model, we will use the `model_1` as it had all the regressors involved.
+
+```{r}
+#Model from Stepwise backward elimination (using AIC) as the second model
+model_2<-step(model_1, data=train, direction="backward")
+model_2
+```
+
+From the above, we can infer that `Tourism_departure` has been removed from the final model as it helps decrease the model's AIC value from 791.99 to 790.99.
+
+**Final Model's Equation:**
+
+```{r}
+#Model Obtained from above 
+model_2 <- lm(GDP ~ Tourism_arrival + Tourism_expenditure + Tourism_receipt, 
+    data = train)
+
+summary(model_2)
+```
+
+For the above implemented `lm` model, we had the following hypothesis:
+
+**H~0~: 𝛽~1~ = 𝛽~2~ ..... 𝛽~k~ = 0**
+
+**H~1~: 𝛽~1~ = 𝛽~2~ ..... 𝛽~k~ ≠** 0
+
+With significance level of $\alpha$ = 0.05
+
+From the above output, we can infer that all the regressor variables are statistically significant as their p-values via the t-test are less than 0.05, and the model has an adjusted R-squared value of 98.8%. The overall model is also significant citing the p-value of the model is less than 0.05 as well.
+
+Equation of Model 2 **(**underscore have not been used in the variable names as LaTeX converts them to subscript):
+
+$$
+\hat{Y} = 436637271137.747-61001.244*TourismArrival + 70.517*TourismExpenditure -30.023*TourismReceipt
+$$
+
+#### 2.4.2.1 ANOVA
+
+We can perform ANOVA on our model based on the following hypothesis:
+
+**H~0~** : The fit of intercept only model and the current model is same. i.e. Additional variables do not provide value taken together.
+
+**H~1~** : The fit of intercept only model is significantly less compared to our current model. i.e. Additional variables do make the model significantly better.
+
+```{r}
+# ANOVA on model 2
+anova(model_2)
+```
+
+The ANOVA gives high F-statistic value for Tourism_arrival and Tourism_expenditure. The p-value of all the variables is less than 0.05 suggesting that the regression is significant at 5% level of significance. This indicates strong evidence against the null hypothesis --that is we reject our null hypothesis based on the significant p-value for all the variables.
+
+#### 2.4.2.2 Model Adequacy
+
+Performing Model Diagnostic plots for obtaining an insight into the residuals of the model.
+
+```{r}
+# Checking for Model Adequacy 
+par(mfrow=c(2,2))
+plot(model_2)
+```
+
+From the above plots:
+
+1.  **Residual vs Fitted Plot**: There is quite a bit of spread from the reference line, however, there is no trend observed. The assumption of linearity will be checked later via additional graphs.
+
+2.  **Normal Q-Q Plot**: Majority of our observations lie on the normal reference line while a few seem to be deviating away, the curve forms a 'S' shape suggesting non-normality in the residuals. This assumption can be checked via the Shapiro Wilk Test as will be performed below.
+
+3.  **Scale-Location Plot:** We do not observe an approximately even spread across the red line, however to prove the assumption of equal variance, we will use the `ncvtest`.
+
+4.  **Residuals vs Leverage Plot:** This plot helps us to identify influential points. We do not observe any observations beyond the dotted boundaries, and hence we can cite that the model does not have residual outliers.
+
+Residuals have the following assumptions that have to be checked and accounted for and they are the following:
+
+1.  There is Equal Variance
+2.  The Errors are Normally Distributed
+3.  Test for Uncorrelated Errors
+4.  Test for Linearity
+
+#### 1) Assumption 1 - Normality
+
+Our model does not appear to be normally distributed, however, we can verify this by the following hypothesis test.
+
+-   **Shapiro-Wilk Test**
+
+**H~0~** : Residuals are normal.
+
+**H~1~**: Residual are not normally distributed.
+
+```{r}
+# Shapiro-Wilk Test for normality
+shapiro.test(model_2$residuals)
+```
+
+From the Shapiro-Wilk test, the p-value= 0.1464 is obtained. Since p-value \> 0.05, at 5% level of significance, H0 is not rejected. Therefore, residuals are normal and the normality error assumption is not violated.
+
+#### 2) Assumption 2 - Error terms are independently distributed (No Autocorrelation)
+
+To check for correlated errors, we can plot an ACF graph.
+
+```{r}
+#Plotting the ACF
+acf(model_2$residuals, main="Plot 7. ACF of Model-2", cex.main=0.9, cex.lab=0.9, cex.sub=0.75)
+```
+
+We can infer that the our model_2 has significant autocorrelation (but weak in value) at lag 3. We can confirm the existence of auto-correlation via the following:
+
+-   Durbin-Watson Test for auto-correlation
+
+**H~0~: Errors are uncorrelated**
+
+**H~1~: Errors are correlated**
+
+```{r}
+#Performing the Durbin Watson Test
+durbinWatsonTest(model_2)
+```
+
+From the Durbin Watson test, p-value= 0.184. Since the p-value \> 0.05 we do not have enough evidence to reject the null hypothesis. This implies that uncorrelated error assumption is not violated.
+
+#### 3) Assumption 3 - Variance of E is constant (the errors are homoscedastic)
+
+To check for the assumption of constant variance, we will perform the following hypothesis test.
+
+**H~0~: Errors have a constant variance.**
+
+**H~1~: Errors have a non-constant variance.**
+
+```{r}
+#Performing the NCVTest
+ncvTest(model_2)
+```
+
+Since the p-value \> 0.05 we fail to reject null hypothesis. This implies that constant error variance assumption is not violated.
+
+#### 4) Assumption 4 - Check for Linearity
+
+We check for linearity by creating a partial residual plot which essentially displays the residuals of one predictor variable against the response variable.
+
+```{r}
+#Checking for linearity 
+crPlots(model_2)
+```
+
+As expected similar to the previous model, we observe a strong linear nature in this model as well. Therefore, we can cite that our residuals are linearly distributed --that is the assumption of linearity is not voided.
+
+#### [Checking for Model Adequacy]{.underline}
+
+Variance inflation factor (VIF) is used to check multi-collinearity of the model.
+
+```{r}
+#Checking for VIF Values
+vif(model_2)
+```
+
+The VIF values for each of the variables in the model are greater than 5, indicating a presence of strong multi-collinearity.
+
+#### 2.4.3 Model 3
+
+For building our next model, we will take the help of the `regsubsets` function. We will select the models based on R^2^ values.
+
+```{r}
+r <- regsubsets(GDP~ Tourism_arrival+ Tourism_departure+ Tourism_expenditure+ Tourism_receipt, data = train)
+
+#Obtaining summary of the fitted model
+summary(r)
+```
+
+We can visualize the above output based on R squared value as depicted below:
+
+```{r}
+#Since we need to select based on R2 Values
+plot(r, scale='r2')
+```
+
+Since, in-general practice, we require a model with a decently high R Squared value, but not too high to avoid over-fitting as well. Our best model includes the all the variables. However, we have 4 possible models with almost comparable R squared values. We will select only one model from this as three of the models have a R2 value of 99% which means that these models will be prone to over-fitting and not producing accurate results, and additionally we need to build models that are simple to implement and understand. This is a good trade-off for selecting model-3.
+
+Hence, our final model has only Tourism_expenditure as a regressor variable, and the equation is as follows:
+
+#### 2.4.3.2 ANOVA for Model 3
+
+For performing ANOVA, we will need to build our model first:
+
+```{r}
+model_3 <- lm(GDP~Tourism_expenditure, data=train)
+
+#Obtaining summary of the data 
+model3_summary<-summary(model_3)
+model3_summary
+```
+
+From the above output, we can infer that the only regressor variable `Tourism_expenditure` is statistically significant as its p-value is less than 0.05. The overall model is also significant with a p-value less than 0.05.
+
+For the above implemented `lm` model, we had the following hypothesis:
+
+**H~0~: 𝛽~1~ = 𝛽~2~ ..... 𝛽~k~ = 0**
+
+**H~1~: 𝛽~1~ = 𝛽~2~ ..... 𝛽~k~ ≠** 0
+
+With significance level of $\alpha$ = 0.05
+
+Equation for Model 3 **(**underscore have not been used in the variable names as LaTeX converts them to subscript):
+
+$$
+\hat{Y} = 139410926509.462 + 33.503*TourismExpenditure 
+$$
+
+We can now proceed towards performing ANOVA:
+
+```{r}
+#Performing ANOVA
+anova(model_3)
+```
+
+From the above output, we can observe that the `Tourism_expenditure` is statistically significant as its p-value is less than 0.05.
+
+#### 2.4.3.3 Model Adequacy for Model 3
+
+Performing Model Diagnostic plots for obtaining an insight into the residuals of the model.
+
+```{r}
+# Model Diagnostic Plots
+par(mfrow=c(2,2))
+plot(model_3)
+```
+
+From the above plots:
+
+1.  **Residual vs Fitted Plot**: Although there isn't a specific spread around the horizontal line, we do observe a downward trend in the residuals which indicates the assumption of linearity is voided. The assumption of linearity will be checked later via additional graphs.
+
+2.  **Normal Q-Q Plot**: Majority of our observations lie on the normal reference line while a few seem to be deviating away. This assumption can be checked via the Shapiro Wilk Test as will be performed below.
+
+3.  **Scale-Location Plot:** We do observe an approximately even spread across the red line, however to prove the assumption of equal variance, we will use the `ncvtest`.
+
+4.  **Residuals vs Leverage Plot:** This plot helps us to identify influential points. We do not observe any observations beyond the dotted boundaries, and hence we can cite that the model does not have residual outliers.
+
+Residuals have the following assumptions that have to be checked and accounted for and they are the following:
+
+1.  There is Equal Variance
+2.  The Errors are Normally Distributed
+3.  Test for Uncorrelated Errors
+4.  Test for Linearity
+
+#### 1) Assumption 1 - Normality
+
+Our model does appear to be normally distributed, however, we can verify this by the following hypothesis test.
+
+-   **Shapiro-Wilk Test**
+
+**H~0~** : Residuals are normal.
+
+**H~1~**: Residual are not normally distributed.
+
+```{r}
+# Shapiro-Wilk Test for normality
+shapiro.test(model_3$residuals)
+```
+
+From the Shapiro-Wilk test, the p-value= 0.2891 is obtained. Since p-value \> 0.05, at 5% level of significance, **H~0~** is not rejected. Therefore, residuals are normal and the normality error assumption is not violated.
+
+#### 2) Assumption 2 - Error terms are independently distributed (No Autocorrelation)
+
+To check for correlated errors, we can plot an ACF graph.
+
+```{r}
+#Plotting the ACF
+acf(model_3$residuals, main="Plot 8.ACF of Model-3", cex.main=0.9, cex.lab=0.9, cex.sub=0.75)
+```
+
+We can infer that the our model_2 has no significant autocorrelation with other lags except at 0. We can confirm the existence of auto-correlation via the following:
+
+-   Durbin-Watson Test for auto-correlation
+
+**H~0~: Errors are uncorrelated**
+
+**H~1~: Errors are correlated**
+
+```{r}
+#Performing the Durbin Watson Test
+durbinWatsonTest(model_3)
+```
+
+From the Durbin Watson test, p-value= 0.732. Since the p-value \> 0.05 we do not have enough evidence to reject the null hypothesis. This implies that uncorrelated error assumption is not violated.
+
+#### 3) Assumption 3 - Variance of E is constant (the errors are homoscedastic)
+
+To check for the assumption of constant variance, we will perform the following hypothesis test.
+
+**H~0~: Errors have a constant variance.**
+
+**H~1~: Errors have a non-constant variance.**
+
+```{r}
+#Performing the NCVTest
+ncvTest(model_3)
+```
+
+Since the p-value \< 0.05 we reject the null hypothesis. This implies that constant error variance assumption is violated.
+
+#### 4) Assumption 4 - Check for Linearity
+
+We check for linearity by creating a partial residual plot which essentially displays the residuals of one predictor variable against the response variable.
+
+```{r}
+#Checking for linearity 
+crPlots(model_3)
+```
+
+We observe a polynomial trend toward the third half of the curve indicating divergence from the assumption of linearity, hence, we are safe to say that our residuals in this model are not linear.
+
+We do not need to calculate VIF values to check for multi-collinearity as there is only regressor variable in the data-set.
+
+## 3. Model Comparisons
+
+To choose the best model for deployment from the three models, we need to compare them on certain basis.
+
+**Model 1** consists of all the regressor variables and explains about 98.77% of the total variance in the data, and meets all assumptions of a regression model, however, has only one out of all the regressor variables statistically significant `Tourism_expenditure`.
+
+**Model 2** consist of all the variables except `Tourism_departure` and all the other regressor variables are statistically significant, and additionally the model meets all the assumptions. This model helps explain about 98.8% of the variance of the data-set.
+
+**Model 3** is the simplest of all the models consisting of only one variable `Tourism_expenditure` and is slightly less prone to over-fitting as it has a lower R2 Value of 93.22%. However, this model fails to meet the assumptions of constant variance and linearity.
+
+Therefore, we essentially can narrow down to two models; Model 1 and Model 2. The reason being they meet the basic assumptions of qualifying to be a regression model. Model-3 can be further pre-processed and transformed to meet the linearity assumption but would fail to meet the assumption of constant variance.
+
+We can assess the difference between the two models via the PRESS Statistic as performed below:
+
+```{r}
+#Using Library DAAG
+DAAG::press(model_1)
+DAAG::press(model_2)
+```
+
+From the above outputs, we can infer that the model 2 is the best model as it has the lowest PRESS statistic value as compared to Model 1. This effectively means that omitting `Tourism_departure` does not impact the predictive performance of the model statistically.
+
+## 4. Verifying The Assumptions And Making Predictions
+
+The coefficients of the regression model 2 are as follows.
+
+```{r}
+#Calculating the coefficients
+model_2$coefficients
+```
+
+From the coefficients of model 2, it is evident that:
+
+-   GDP of a nation is inversely proportional to the Tourism by Arrival as coefficient is -61001.2440 (USD). This is true as with respect to the country of the passenger, them travelling overseas effectively decreases money flow in the home nation leading to a decrease in the GDP.
+
+-   GDP is directly proportional to the tourism expenditure as the coefficient is 70.51728. This means that GDP increases when outbound passengers spend in other countries including on foreign carriers.
+
+-   Lastly, GDP decreases with Tourism Receipt, which is completely the opposite to what we had hypothesized at the beginning.
+
+```{r}
+#Predicting for the next 5 years
+pred <- as.data.frame(predict(model_2,test[,1:6],interval = "prediction"))
+pred$actual_value <- test$GDP
+kable(head(pred,5)) %>% kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+From the above, according to the next 5 predictions with a confidence level of 95%; the GDP would remain almost the same for the initial 3 years and then increase substantially from 613890467185 USD to 1081805673758 USD.
+
+## 5. Model Evaluation
+
+### 5.1 Mean Absolute Scaled Error
+
+An important measure for any model; is how large or small errors it produces.
+
+```{r}
+#Calculating MASE
+MASE(pred$fit, pred$actual_value)
+```
+
+Since, we are calculating MASE, it is less sensitive to outliers and extreme values. Since, the metric is effectively a ratio, value of MASE of 0.4244 --that is less than 1 indicates good performance.
+
+### 5.2 Root Mean Squared Error
+
+To further analyse the ability of our model, we can check another error metric.
+
+```{r}
+accuracy_data <- accuracy(pred$fit, pred$actual_value)
+accuracy_data
+```
+
+With a mean error (ME) of 154752709319, since it is positive mean error, we can cite that the values have been overestimated which was apparent as the model had a high R squared value. From the RMSE, we can cite that the error is small as our data has values in millions. Overall, the model in-terms of errors seems to estimating well.
+
+### 6. Results
+
+From the above performed regression analysis, we successfully selected `Model 2` as our best model based on a lower PRESS statistic value. The Model was able to predict the GDP from International Tourism for the next 5 years indicating a stable growth for the first three, and then an incremental one. The model has a value of MASE less than 1 suggesting the performance delivered by the model is good -- that is reasonably accurate and has an efficient prediction performance as well.
+
+### 7. Discussion
+
+We began by splitting our original data-set into a ratio of 70:30 to account for prediction performance of the model that will be deployed -- that is we aimed to test the functioning of the model on the 30% unseen data so that, we understand how well the model responds to new data.
+
+Our first model was built considering all the regression variables and the model only had one statistically significant variable 'Tourism Expenditure', and was able to explain 98.77% of the total variance in the data. The model, however, met all the assumptions of the a multiple regression model. Our second model was built using the concept of Backward Elimination, which is a more of a refined version of the first model, as the technique takes in a completely filled model such as that of model 1, and then removes variables so as to achieve a lower AIC value for the overall model. This model removed 'Tourism Departure' from the model building stage, and all of its variables were statistically significant and also met all the assumptions. For building the third model, we implemented the concept of regression subsets, which helps to build multiple models based on sub-setting of variables on a select criteria. Our model 3 consisted of just one variable 'Tourism Expenditure' had a slightly lower R squared value of 93.22% which meant the model over-fit much less than its counterparts, however, the model failed to meet the assumption of linearity and constant variance. Hence during model comparison this model was rejected.
+
+Based on the lower PRESS statistic value, we selected model 2 in the competition between model 1 and model 2, and we proceeded to deployment.
+
+### 8. Conclusion
+
+With a MASE value of less than 1, we can cite that our chosen model 'Model 2' is sufficient in performance and has an efficient prediction performance for calculating GDP based on just three of the initial four variables.
+
+### 9. References
+
+1.  World Bank (2023). *World Development Indicators \| DataBank*. [online] The World Bank. Available at: <https://databank.worldbank.org/source/world-development-indicators.>
