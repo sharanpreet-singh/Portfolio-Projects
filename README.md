@@ -40,9 +40,15 @@ In this repository, I've compiled my data analysis projects that demonstrate my 
 - Tools/ Languages Used: R Programming (R-Studio)
 - Abstract: The dataset was split for model testing, focusing on unseen data. Initially, all regression variables pointed to 'Tourism Expenditure' as highly significant, explaining 98.77% variance and meeting assumptions. Refinement via Backward Elimination sustained significance in variables, but Model 3 with only 'Tourism Expenditure' showed less overfitting yet failed linearity and variance assumptions. Model comparison favored Model 2, displaying better adaptability to new data with a lower PRESS statistic, leading to its deployment after thorough evaluation.
 
+### Project 6: 
+- **Description**: COVID-19 Database Design, ER Modelling and Working via SQL Queries 
+- Tools/ Languages Used: SQLite and LucidChart
+- Abstract: The goal was to use a live COVID-19 dataset (Owid, Github) to implement a Database based on ER Modelling that would be able to fetch details of COVID-19 vaccinations in various countries by the use of SQL queries.
+
+
 ## Technologies Used 💻🧑‍💻
 - Programming Languages: R, Python and  SQL 
-- Working Environments: R-Studio, Jupyter Notebooks, and PostgreSQL
+- Working Environments: R-Studio, Jupyter Notebooks, and SQLite
 - Tools or Libraries: Numpy, Pandas, NLP, matplotlib, and Scikit
 - Visualisation Tools: Tableau, Excel, and GGPlot2
 
